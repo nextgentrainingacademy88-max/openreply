@@ -1,33 +1,118 @@
 @import "tailwindcss";
 
-/* ManyChat Alternative — Design System
-   Plain and functional. No gradients, glass, glow, or animation. */
+/* OpenReply Design System — ManyChat-inspired, own visual identity.
+   Bold, friendly, bright. Orange is the lead color. Warm off-white in light
+   mode, warm near-black in dark mode. Cards are rounded-2xl, buttons and
+   inputs rounded-xl, with soft warm shadows instead of flat borders alone.
+
+   Theme switching: `data-theme="light" | "dark"` on <html> (a tiny inline
+   script in app/layout.tsx sets it before paint to avoid a flash). No
+   attribute follows the OS via prefers-color-scheme. See ThemeToggle in
+   components/ui/theme-toggle.tsx for the control that writes the attribute
+   and localStorage. */
 
 @theme inline {
-  --color-background: #ffffff;
-  --color-foreground: #18181b;
-  --color-surface: #f7f7f8;
-  --color-surface-hover: #efeff1;
-  --color-border: #e4e4e7;
-  --color-border-hover: #d4d4d8;
-  --color-muted: #71717a;
-  --color-accent: #f97316;
-  --color-accent-hover: #ea580c;
-  --color-success: #16a34a;
-  --color-error: #dc2626;
-  --color-warning: #d97706;
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-hover: var(--border-hover);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-plus-jakarta-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, monospace;
 }
 
-html {
+/* Light theme (default) */
+:root {
+  --background: #fffbf7;
+  --foreground: #1c1917;
+  --surface: #ffffff;
+  --surface-2: #fff4ea;
+  --surface-hover: #fff1e4;
+  --border: #f0e4d8;
+  --border-hover: #e6d3c1;
+  --muted: #78716c;
+  --accent: #ff6a13;
+  --accent-hover: #e85a06;
+  --accent-soft: #ffe8d6;
+  --accent-foreground: #ffffff;
+  --success: #16a34a;
+  --error: #dc2626;
+  --warning: #d97706;
+
   color-scheme: light;
+}
+
+/* Dark theme — explicit opt-in via data-theme="dark" */
+:root[data-theme="dark"] {
+  --background: #0f0d0b;
+  --foreground: #faf7f2;
+  --surface: #1a1714;
+  --surface-2: #221e1a;
+  --surface-hover: #26211c;
+  --border: #2e2823;
+  --border-hover: #3d352e;
+  --muted: #a8a29e;
+  --accent: #ff7a2e;
+  --accent-hover: #ff8f4d;
+  --accent-soft: rgba(255, 122, 46, 0.14);
+  --accent-foreground: #ffffff;
+  --success: #22c55e;
+  --error: #f87171;
+  --warning: #fbbf24;
+
+  color-scheme: dark;
+}
+
+/* System theme — only takes effect when no explicit choice is stored
+   (data-theme absent, or explicitly "system"). The inline bootstrap script
+   sets data-theme="dark"/"light" directly when a choice is stored, so this
+   media query only ever matters pre-choice / on "system". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --background: #0f0d0b;
+    --foreground: #faf7f2;
+    --surface: #1a1714;
+    --surface-2: #221e1a;
+    --surface-hover: #26211c;
+    --border: #2e2823;
+    --border-hover: #3d352e;
+    --muted: #a8a29e;
+    --accent: #ff7a2e;
+    --accent-hover: #ff8f4d;
+    --accent-soft: rgba(255, 122, 46, 0.14);
+    --accent-foreground: #ffffff;
+    --success: #22c55e;
+    --error: #f87171;
+    --warning: #fbbf24;
+
+    color-scheme: dark;
+  }
 }
 
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* Focus ring — visible, for keyboard users. */
@@ -55,29 +140,25 @@ select:focus-visible {
   }
 }
 
-/* Panel — flat container. Replaces .glass / .glass-strong. */
+/* Panel / card — the base surface for grouped content. Rounded, bordered,
+   with a soft warm shadow that reads as "lifted" without being loud.
+   Prefer components/ui/card.tsx (Card/CardHeader/CardTitle) in new code;
+   .panel stays for existing markup that applies it directly to a div. */
 .panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 8px 24px -12px rgba(255, 106, 19, 0.12);
 }
 
-/* Kept as no-op aliases so existing markup degrades to plain surfaces
-   instead of breaking. Prefer .panel in new code. */
-.glass,
-.glass-strong {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+:root[data-theme="dark"] .panel {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
 }
 
-.gradient-mesh {
-  background: none;
-}
-
-.animate-fade-in,
-.animate-slide-in,
-.animate-pulse-glow,
-.stagger > * {
-  animation: none;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .panel {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -85,6 +166,8 @@ select:focus-visible {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

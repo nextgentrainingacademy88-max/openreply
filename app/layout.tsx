@@ -1,6 +1,32 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta-sans",
+  display: "swap",
+});
+
+// Sets `data-theme` on <html> before paint, so the light/dark tokens in
+// globals.css are correct on first render instead of flashing the wrong
+// theme. Only writes the attribute when the user has made an explicit
+// choice (ThemeToggle writes "light" | "dark" to localStorage); leaving it
+// unset lets the `prefers-color-scheme` media query in globals.css decide,
+// which is what "system" means. Runs inline, before hydration, so it can't
+// import anything — keep it dependency-free.
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") {
+      document.documentElement.setAttribute("data-theme", stored);
+    }
+  } catch (e) {}
+})();
+`;
 
 export const metadata: Metadata = {
   title: "OpenReply - Open source Instagram comment-to-DM automation",
@@ -29,7 +55,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#18181b",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFBF7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F0D0B" },
+  ],
   width: "device-width",
   initialScale: 1,
   // Installed on iOS the app owns the full screen, notch included; the safe
@@ -43,7 +72,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full dark">
+    <html lang="en" className={`h-full ${plusJakartaSans.variable}`}>
+      <head>
+        {/* Dependency-free pre-paint theme bootstrap; see THEME_INIT_SCRIPT above. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body
         className="min-h-full bg-background text-foreground font-sans antialiased"
         // Clears the home indicator when installed; 0 everywhere else.

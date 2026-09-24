@@ -12,7 +12,7 @@
  * already running then.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Button, EmptyState } from "@/components/ui";
 
 export interface FollowerChartPoint {
   date: string;
@@ -29,11 +30,42 @@ export interface FollowerChartPoint {
   delta: number | null;
 }
 
-// Colors read against the light chart surface (#ffffff): the accent line clears
-// 3:1 contrast and grid/axis text match the muted/border tokens. See globals.css.
-const SERIES_COLOR = "#f97316";
-const GRID_COLOR = "#e4e4e7";
-const AXIS_TEXT = "#71717a";
+/**
+ * Reads a design token's *resolved* color at render time instead of hardcoding
+ * a hex value. recharts renders stroke/fill as literal SVG attribute values,
+ * so it needs a real color string (not every browser resolves `var(--x)`
+ * inside those the same way a CSS property would) — this resolves the
+ * variable via getComputedStyle instead. It re-reads whenever `data-theme`
+ * changes (the ThemeToggle) or the OS scheme changes (system theme, no
+ * explicit choice stored), so the chart re-colors live without a reload.
+ */
+function useTokenColor(cssVar: string, fallback: string): string {
+  const [color, setColor] = useState(fallback);
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    function read() {
+      const value = getComputedStyle(root).getPropertyValue(cssVar).trim();
+      if (value) setColor(value);
+    }
+
+    read();
+
+    const observer = new MutationObserver(read);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", read);
+
+    return () => {
+      observer.disconnect();
+      media.removeEventListener("change", read);
+    };
+  }, [cssVar]);
+
+  return color;
+}
 
 function formatCompact(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -64,7 +96,7 @@ function ChartTooltip({
   const point = payload[0].payload;
 
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-xl border border-border bg-surface px-3 py-2 text-xs shadow-lg">
       <p className="text-muted">{formatDay(point.date)}</p>
       <p className="mt-1 font-semibold text-foreground">
         {point.followers.toLocaleString()} followers
@@ -87,6 +119,14 @@ export default function FollowerChart({
 }) {
   const [showTable, setShowTable] = useState(false);
 
+  // Read against whichever surface the chart currently sits on: the accent
+  // line and grid/axis text stay token-driven (and theme-reactive) instead
+  // of hardcoded hex. See useTokenColor above.
+  const seriesColor = useTokenColor("--color-accent", "#FF6A13");
+  const gridColor = useTokenColor("--color-border", "#F0E4D8");
+  const axisText = useTokenColor("--color-muted", "#78716C");
+  const dotStroke = useTokenColor("--color-surface", "#FFFFFF");
+
   const current = followers ?? data.at(-1)?.followers ?? null;
 
   // Net change across the whole visible window, shown once in the header rather
@@ -95,12 +135,10 @@ export default function FollowerChart({
     data.length > 1 ? data[data.length - 1].followers - data[0].followers : null;
 
   return (
-    <div className="panel rounded p-4 sm:p-6">
+    <div className="panel p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-foreground">
-            Followers over time
-          </h2>
+          <h2 className="text-sm font-bold text-foreground">Followers over time</h2>
           <p className="mt-1 text-sm text-muted">
             {current === null
               ? "Follower count unavailable"
@@ -117,32 +155,30 @@ export default function FollowerChart({
           </p>
         </div>
         {data.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setShowTable((v) => !v)}
-            className="rounded border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
-          >
+          <Button variant="secondary" size="sm" onClick={() => setShowTable((v) => !v)}>
             {showTable ? "Show chart" : "Show table"}
-          </button>
+          </Button>
         )}
       </div>
 
       {data.length < 2 ? (
-        <div className="mt-6 rounded border border-border bg-surface/60 p-6 text-center">
-          <p className="text-sm text-foreground">Collecting follower history</p>
-          <p className="mt-1 text-sm text-muted">
-            {data.length === 0
-              ? "No snapshots recorded yet."
-              : "One day recorded so far."}{" "}
-            A point is added daily — the chart appears once there are at least
-            two.
-          </p>
-        </div>
+        <EmptyState
+          className="mt-6 rounded-2xl border border-border bg-surface-2 py-8"
+          title="Collecting follower history"
+          description={
+            <>
+              {data.length === 0
+                ? "No snapshots recorded yet."
+                : "One day recorded so far."}{" "}
+              A point is added daily — the chart appears once there are at least two.
+            </>
+          }
+        />
       ) : showTable ? (
         <div className="mt-4 max-h-72 overflow-y-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-zinc-500">
+              <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="py-2 pr-4 font-medium">Date</th>
                 <th className="py-2 px-3 font-medium text-right">Followers</th>
                 <th className="py-2 pl-3 font-medium text-right">Change</th>
@@ -174,21 +210,21 @@ export default function FollowerChart({
             >
               <CartesianGrid
                 vertical={false}
-                stroke={GRID_COLOR}
+                stroke={gridColor}
                 strokeDasharray="3 3"
               />
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDay}
-                tick={{ fill: AXIS_TEXT, fontSize: 12 }}
-                stroke={GRID_COLOR}
+                tick={{ fill: axisText, fontSize: 12 }}
+                stroke={gridColor}
                 tickLine={false}
                 minTickGap={24}
               />
               <YAxis
                 tickFormatter={formatCompact}
-                tick={{ fill: AXIS_TEXT, fontSize: 12 }}
-                stroke={GRID_COLOR}
+                tick={{ fill: axisText, fontSize: 12 }}
+                stroke={gridColor}
                 tickLine={false}
                 width={52}
                 // Followers rarely start near zero, so a zero baseline would
@@ -197,15 +233,15 @@ export default function FollowerChart({
               />
               <Tooltip
                 content={<ChartTooltip />}
-                cursor={{ stroke: GRID_COLOR, strokeWidth: 1 }}
+                cursor={{ stroke: gridColor, strokeWidth: 1 }}
               />
               <Line
                 type="monotone"
                 dataKey="followers"
-                stroke={SERIES_COLOR}
+                stroke={seriesColor}
                 strokeWidth={2}
                 dot={false}
-                activeDot={{ r: 4, fill: SERIES_COLOR, stroke: "#ffffff", strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: seriesColor, stroke: dotStroke, strokeWidth: 2 }}
                 isAnimationActive={false}
               />
             </LineChart>

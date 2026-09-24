@@ -3,13 +3,19 @@
 /**
  * Top Bar
  *
- * Page title, mobile hamburger, and connection status.
+ * Page title, mobile hamburger, and connection status. Account count now
+ * renders as a Badge "chip" instead of plain text; the connect CTA reuses
+ * Button's primary styling.
  */
 
+import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { Badge, buttonClasses } from "@/components/ui";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/overview": "Overview",
+  "/inbox": "Inbox",
   "/campaigns": "Campaigns",
   "/campaigns/new": "New Campaign",
   "/automations": "Campaigns",
@@ -47,25 +53,25 @@ export default function TopBar({
       <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         <button
           onClick={onMenuClick}
-          className="lg:hidden shrink-0 px-2.5 py-1.5 rounded border border-border text-sm text-muted hover:text-foreground"
+          className="lg:hidden shrink-0 flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted hover:text-foreground hover:bg-surface-hover"
           aria-label="Toggle sidebar"
         >
-          Menu
+          <Menu className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
         </button>
-        <h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
+        <h1 className="truncate text-base font-bold tracking-tight sm:text-lg">{title}</h1>
       </div>
 
       {instagramAccountCount > 0 ? (
-        <p className="shrink-0 truncate text-sm text-muted">
+        <Badge tone="accent" className="shrink-0">
           {instagramAccountCount > 1
             ? `${instagramAccountCount} accounts`
             : `@${instagramUsername}`}
-        </p>
+        </Badge>
       ) : (
-        <a
-          href="/api/instagram/connect"
-          className="shrink-0 whitespace-nowrap text-sm font-medium px-3 py-1.5 rounded bg-accent text-white hover:bg-accent-hover"
-        >
+        // A real <a>, not ButtonLink/next-link: this has to force a full
+        // browser navigation into the Meta OAuth handshake, which a
+        // client-side router navigation could intercept and mishandle.
+        <a href="/api/instagram/connect" className={buttonClasses("primary", "sm", "shrink-0")}>
           {/* Full label needs more room than a 360px header has to spare. */}
           <span className="sm:hidden">Connect</span>
           <span className="hidden sm:inline">Connect Instagram</span>
