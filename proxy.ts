@@ -11,22 +11,24 @@ function hasSessionCookie(request: NextRequest): boolean {
   );
 }
 
+/**
+ * Cheap gate for protected pages: no session cookie at all means login.
+ * Cookie presence is not proof of a valid session (it can be stale or from
+ * an older session format), so /login is deliberately not bounced to the
+ * dashboard here; the login page checks the real session itself. Doing it
+ * here caused a redirect loop for a stale cookie.
+ */
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
-  const isLogin = pathname === "/login";
   const isAuthenticated = hasSessionCookie(request);
 
   if (isProtected && !isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  if (isLogin && isAuthenticated) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();
@@ -38,6 +40,5 @@ export const config = {
     "/automations/:path*",
     "/logs/:path*",
     "/settings/:path*",
-    "/login",
   ],
 };

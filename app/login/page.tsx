@@ -2,7 +2,7 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { KeyRound, MessageCircleReply, Sparkles } from "lucide-react";
 import { Button, Card, Input } from "@/components/ui";
-import { EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
+import { EMAIL_PROVIDER_ID, auth, signIn } from "@/lib/auth";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 
 export const metadata = {
@@ -28,6 +28,15 @@ export default async function LoginPage({
     ? `/campaigns/new?template=${selectedTemplate.slug}`
     : null;
   const callbackUrl = params.callbackUrl ?? templateCallbackUrl ?? "/dashboard";
+
+  // Already signed in with a valid session: skip the form. Only same-site
+  // paths are followed, so a crafted callbackUrl can't redirect elsewhere.
+  const session = await auth();
+  if (session?.user) {
+    redirect(
+      callbackUrl.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : "/dashboard"
+    );
+  }
 
   async function signInWithPassword(formData: FormData) {
     "use server";
