@@ -1,9 +1,11 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import Nodemailer from "next-auth/providers/nodemailer";
 import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser, getPrimaryWorkspace } from "@/lib/workspace";
+import { authorizeCredentials } from "@/lib/auth-credentials";
 
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
@@ -20,8 +22,17 @@ const smtpServer = process.env.EMAIL_SERVER;
 export const EMAIL_PROVIDER_ID = smtpServer ? "nodemailer" : "resend";
 
 export const authConfig = {
+  // Still required with a "jwt" session strategy: the Email (magic-link)
+  // provider uses it to persist users and verification tokens.
   adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
   providers: [
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      authorize: (credentials, request) => authorizeCredentials(credentials, request),
+    }),
     smtpServer
       ? Nodemailer({ server: smtpServer, from: emailFrom })
       : Resend({
@@ -30,9 +41,18 @@ export const authConfig = {
         }),
   ],
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user }) {
+      // `user` is only present on the sign-in request itself (any
+      // provider); persist its id into the token that gets encoded into
+      // the session cookie from then on.
+      if (user?.id) {
+        token.sub = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
       }
       return session;
     },
@@ -49,7 +69,12 @@ export const authConfig = {
     verifyRequest: "/verify-request",
   },
   session: {
-    strategy: "database",
+    // The Credentials provider requires JWT sessions (its users aren't
+    // persisted to the Session table the way OAuth/Email users are). This
+    // invalidates any previously issued database sessions, which is fine
+    // for a single-owner app — sign in once more after deploying this.
+    strategy: "jwt",
+    maxAge: 60 * 60 * 24 * 60, // 60 days
   },
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET,

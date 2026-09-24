@@ -1,4 +1,6 @@
-import { MessageCircleReply, Sparkles } from "lucide-react";
+import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
+import { KeyRound, MessageCircleReply, Sparkles } from "lucide-react";
 import { Button, Card, Input } from "@/components/ui";
 import { EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
@@ -15,15 +17,38 @@ export default async function LoginPage({
     checkEmail?: string;
     callbackUrl?: string;
     template?: string;
+    error?: string;
   }>;
 }) {
   const params = await searchParams;
   const checkEmail = params.checkEmail === "1";
+  const hasCredentialsError = params.error === "credentials";
   const selectedTemplate = getCampaignTemplate(params.template);
   const templateCallbackUrl = selectedTemplate
     ? `/campaigns/new?template=${selectedTemplate.slug}`
     : null;
   const callbackUrl = params.callbackUrl ?? templateCallbackUrl ?? "/dashboard";
+
+  async function signInWithPassword(formData: FormData) {
+    "use server";
+    try {
+      await signIn("credentials", {
+        email: String(formData.get("email") ?? ""),
+        password: String(formData.get("password") ?? ""),
+        redirectTo: callbackUrl,
+      });
+    } catch (error) {
+      // signIn() itself throws a redirect on success — that must propagate,
+      // not be swallowed here. Only a real auth failure gets our own
+      // redirect back to the login form with a generic error.
+      if (error instanceof AuthError) {
+        const query = new URLSearchParams({ error: "credentials" });
+        query.set("callbackUrl", callbackUrl);
+        redirect(`/login?${query.toString()}`);
+      }
+      throw error;
+    }
+  }
 
   async function sendMagicLink(formData: FormData) {
     "use server";
@@ -76,28 +101,87 @@ export default async function LoginPage({
               </p>
             </div>
           ) : (
-            <form action={sendMagicLink} className="space-y-5">
-              <div className="space-y-2">
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-foreground"
-                >
-                  Work email
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                />
-              </div>
+            <>
+              {hasCredentialsError && (
+                <div className="mb-5 rounded-xl border border-error/30 bg-error/10 p-4">
+                  <p className="text-sm font-medium text-error">
+                    Wrong email or password, or too many attempts. Try again
+                    in a few minutes.
+                  </p>
+                </div>
+              )}
 
-              <Button type="submit" size="lg" className="w-full">
-                Email me a magic link
-              </Button>
-            </form>
+              <form action={signInWithPassword} className="space-y-5">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-foreground"
+                  >
+                    Email
+                  </label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@company.com"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-foreground"
+                  >
+                    Password
+                  </label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••••"
+                  />
+                </div>
+
+                <Button type="submit" size="lg" className="w-full">
+                  <KeyRound className="h-4 w-4" aria-hidden="true" />
+                  Sign in
+                </Button>
+              </form>
+
+              <div className="mt-6 border-t border-border pt-5">
+                <details className="group">
+                  <summary className="cursor-pointer text-sm font-medium text-muted transition-colors duration-150 hover:text-foreground">
+                    Forgot password or no password yet? Email me a sign-in
+                    link
+                  </summary>
+
+                  <form
+                    action={sendMagicLink}
+                    className="mt-4 flex flex-col gap-3 sm:flex-row"
+                  >
+                    <label htmlFor="magic-link-email" className="sr-only">
+                      Work email
+                    </label>
+                    <Input
+                      id="magic-link-email"
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      placeholder="you@company.com"
+                      className="sm:flex-1"
+                    />
+                    <Button type="submit" variant="secondary" className="shrink-0">
+                      Email me a link
+                    </Button>
+                  </form>
+                </details>
+              </div>
+            </>
           )}
         </Card>
       </div>

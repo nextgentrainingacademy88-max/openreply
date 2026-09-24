@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { AccountOption } from "@/components/account-select";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
+import { PasswordCard } from "@/components/settings-password-card";
 import {
   Badge,
   Button,
@@ -368,6 +369,8 @@ export default function SettingsPage() {
             </form>
           )}
         </Card>
+
+        <PasswordCard />
 
         <StatCard
           label="DMs sent this month"
