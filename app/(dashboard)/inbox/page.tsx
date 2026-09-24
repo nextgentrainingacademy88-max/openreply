@@ -11,7 +11,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, Inbox as InboxIcon, MessagesSquare, Send } from "lucide-react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import { Button, EmptyState, PageHeader, Textarea } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { readCache, writeCache } from "@/lib/client-cache";
 import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
@@ -33,6 +36,11 @@ function formatTime(iso: string | null): string {
   return sameDay
     ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** Temporary id for a reply shown before the server confirms it. */
+function optimisticId() {
+  return `optimistic-${Date.now()}`;
 }
 
 export default function InboxPage() {
@@ -211,7 +219,7 @@ export default function InboxPage() {
 
     // Optimistically show the reply immediately, then confirm with the server.
     const optimistic: ThreadMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: optimisticId(),
       text,
       fromMe: true,
       fromUsername: null,
@@ -257,20 +265,23 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
-        {accounts.length > 1 && (
-          <AccountSelect
-            accounts={accounts}
-            value={selectedAccountId}
-            onChange={setSelectedAccountId}
-            includeAll={false}
-          />
-        )}
-      </div>
+    <div className="space-y-4 sm:space-y-6">
+      <PageHeader
+        title="Inbox"
+        description="Instagram DMs from your connected accounts, in one place."
+        actions={
+          accounts.length > 1 ? (
+            <AccountSelect
+              accounts={accounts}
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              includeAll={false}
+            />
+          ) : undefined
+        }
+      />
 
-      <div className="grid h-[calc(100dvh-11rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[300px_1fr]">
+      <div className="grid h-[calc(100dvh-14rem)] min-h-[420px] grid-cols-1 overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_1px_2px_rgba(28,25,23,0.04),0_8px_24px_-12px_rgba(255,106,19,0.12)] sm:grid-cols-[300px_1fr]">
         {/* Conversation list. On mobile it takes the full pane and is hidden
             once a thread is open (ManyChat-style); on sm+ it is always shown. */}
         <div
@@ -278,7 +289,7 @@ export default function InboxPage() {
             active ? "hidden" : "flex"
           }`}
         >
-          <div className="shrink-0 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
+          <div className="shrink-0 border-b border-border px-4 py-3.5 text-sm font-bold text-foreground">
             Conversations
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -287,33 +298,45 @@ export default function InboxPage() {
             ) : convError ? (
               <p className="px-4 py-6 text-sm text-error">{convError}</p>
             ) : conversations.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted">No conversations yet.</p>
+              <EmptyState
+                icon={MessagesSquare}
+                title="No conversations yet"
+                description="New Instagram DMs will show up here."
+                className="py-10"
+              />
             ) : (
               conversations.map((c) => {
                 const isActive = c.id === activeId;
+                const initial = (c.contact.username ?? "?").charAt(0).toUpperCase();
                 return (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => openConversation(c.id)}
-                    className={`block w-full border-b border-border px-4 py-3 text-left ${
-                      isActive ? "bg-surface-hover" : "hover:bg-surface-hover"
-                    }`}
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">
-                        @{c.contact.username ?? "unknown"}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-zinc-500">
-                        {formatTime(c.updatedTime)}
-                      </span>
-                    </div>
-                    {c.lastMessage && (
-                      <p className="mt-0.5 truncate text-xs text-muted">
-                        {c.lastMessage.fromMe ? "You: " : ""}
-                        {c.lastMessage.text || "(no text)"}
-                      </p>
+                    className={cn(
+                      "flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors",
+                      isActive ? "bg-accent-soft" : "hover:bg-surface-hover"
                     )}
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-bold text-accent">
+                      {initial}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          @{c.contact.username ?? "unknown"}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-muted">
+                          {formatTime(c.updatedTime)}
+                        </span>
+                      </span>
+                      {c.lastMessage && (
+                        <span className="mt-0.5 block truncate text-xs text-muted">
+                          {c.lastMessage.fromMe ? "You: " : ""}
+                          {c.lastMessage.text || "(no text)"}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 );
               })
@@ -327,20 +350,26 @@ export default function InboxPage() {
           className={`min-h-0 flex-col ${active ? "flex" : "hidden sm:flex"}`}
         >
           {!active ? (
-            <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted">
-              Select a conversation to read and reply.
-            </div>
+            <EmptyState
+              icon={InboxIcon}
+              title="Select a conversation"
+              description="Pick a conversation on the left to read and reply."
+              className="m-auto"
+            />
           ) : (
             <>
-              <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
+              <div className="flex shrink-0 items-center gap-2.5 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
                 <button
                   type="button"
                   onClick={() => setActiveId(null)}
-                  className="-ml-1 rounded px-2 py-1 text-muted hover:text-foreground sm:hidden"
+                  className="-ml-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground sm:hidden"
                   aria-label="Back to conversations"
                 >
-                  Back
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                 </button>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent">
+                  {(active.contact.username ?? "?").charAt(0).toUpperCase()}
+                </span>
                 <span className="truncate">
                   @{active.contact.username ?? "unknown"}
                 </span>
@@ -358,17 +387,19 @@ export default function InboxPage() {
                       className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
+                        className={cn(
+                          "max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm",
                           m.fromMe
-                            ? "bg-accent text-white"
-                            : "bg-surface text-foreground border border-border"
-                        }`}
+                            ? "rounded-br-md bg-accent text-accent-foreground"
+                            : "rounded-bl-md border border-border bg-surface-2 text-foreground"
+                        )}
                       >
                         <p className="whitespace-pre-wrap break-words">{m.text}</p>
                         <p
-                          className={`mt-1 text-[10px] ${
-                            m.fromMe ? "text-white/70" : "text-zinc-500"
-                          }`}
+                          className={cn(
+                            "mt-1 text-[10px]",
+                            m.fromMe ? "text-accent-foreground/70" : "text-muted"
+                          )}
                         >
                           {formatTime(m.createdTime)}
                         </p>
@@ -383,22 +414,28 @@ export default function InboxPage() {
                   <p className="mb-2 text-xs text-error">{sendError}</p>
                 )}
                 <div className="flex items-end gap-2">
-                  <textarea
+                  <Textarea
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={handleKeyDown}
                     rows={1}
                     placeholder="Write a reply…  (Enter to send, Shift+Enter for a new line)"
-                    className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                    className="max-h-32 min-h-[44px] flex-1 resize-none"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={() => void handleSend()}
                     disabled={sending || !draft.trim()}
-                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
                   >
-                    {sending ? "Sending…" : "Send"}
-                  </button>
+                    {sending ? (
+                      "Sending…"
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" aria-hidden="true" />
+                        Send
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </>

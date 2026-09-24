@@ -1,3 +1,5 @@
+import { MessageCircleReply, Sparkles } from "lucide-react";
+import { Button, Card, Input } from "@/components/ui";
 import { EMAIL_PROVIDER_ID, signIn } from "@/lib/auth";
 import { getCampaignTemplate } from "@/lib/templates/campaign-templates";
 
@@ -32,34 +34,42 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
+    <div className="flex min-h-screen items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold text-foreground">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="mb-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent text-white shadow-[0_10px_24px_-8px_rgba(255,106,19,0.55)]">
+            <MessageCircleReply className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
             OpenReply
           </h1>
-          <p className="text-muted text-sm leading-relaxed mt-2">
+          <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted">
             {selectedTemplate
               ? `Sign in to use the ${selectedTemplate.title} template.`
               : "Sign in by email, then connect your Instagram professional account."}
           </p>
         </div>
 
-        <div className="panel rounded p-8 shadow-black/40">
+        <Card>
           {selectedTemplate && !checkEmail && (
-            <div className="mb-5 border border-accent/20 bg-accent/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-                Template selected
-              </p>
-              <p className="mt-2 text-sm font-semibold text-foreground">
-                {selectedTemplate.title}
-              </p>
+            <div className="mb-5 flex items-start gap-3 rounded-xl border border-accent/20 bg-accent-soft p-4">
+              <Sparkles className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-accent">
+                  Template selected
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {selectedTemplate.title}
+                </p>
+              </div>
             </div>
           )}
 
           {checkEmail ? (
-            <div className="text-center py-4">
-              <h2 className="text-lg font-semibold mb-2">Check your email</h2>
+            <div className="py-4 text-center">
+              <h2 className="mb-2 text-lg font-bold text-foreground">
+                Check your email
+              </h2>
               <p className="text-sm text-muted">
                 We sent you a secure sign-in link. Open it on this device to
                 continue.
@@ -74,26 +84,22 @@ export default async function LoginPage({
                 >
                   Work email
                 </label>
-                <input
+                <Input
                   id="email"
                   name="email"
                   type="email"
                   required
                   autoComplete="email"
                   placeholder="you@company.com"
-                  className="w-full px-4 py-3 rounded bg-surface border border-border text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none transition-colors"
                 />
               </div>
 
-              <button
-                type="submit"
-                className="w-full inline-flex items-center justify-center gap-2 rounded bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-indigo-500/25 transition-all hover:shadow-indigo-500/30"
-              >
+              <Button type="submit" size="lg" className="w-full">
                 Email me a magic link
-              </button>
+              </Button>
             </form>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

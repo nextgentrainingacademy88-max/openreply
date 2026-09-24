@@ -7,6 +7,7 @@
  */
 
 import { useState, type KeyboardEvent } from "react";
+import { X } from "lucide-react";
 
 interface KeywordInputProps {
   keywords: string[];
@@ -42,20 +43,20 @@ export default function KeywordInput({ keywords, onChange, max = 10 }: KeywordIn
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2 p-3 rounded bg-surface border border-border min-h-[48px]">
+      <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-3 transition-colors focus-within:border-accent">
         {keywords.map((keyword) => (
           <span
             key={keyword}
-            className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-xs"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 py-1 pr-1.5 pl-2.5 text-xs font-semibold text-foreground"
           >
             {keyword}
             <button
               type="button"
               onClick={() => removeKeyword(keyword)}
               aria-label={`Remove ${keyword}`}
-              className="text-muted hover:text-error"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-hover hover:text-error"
             >
-              Remove
+              <X className="h-3 w-3" aria-hidden="true" />
             </button>
           </span>
         ))}
@@ -64,8 +65,9 @@ export default function KeywordInput({ keywords, onChange, max = 10 }: KeywordIn
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={keywords.length === 0 ? "Type keyword and press Enter..." : ""}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-foreground placeholder:text-zinc-500 outline-none"
+          placeholder={keywords.length === 0 ? "Type keyword and press Enter…" : ""}
+          aria-label="Add keyword"
+          className="min-w-[120px] flex-1 bg-transparent text-sm text-foreground placeholder:text-muted outline-none"
         />
       </div>
       <p className="text-xs text-muted">

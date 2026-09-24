@@ -10,7 +10,9 @@
  */
 
 import { useEffect, useState } from "react";
+import { AlertTriangle, ImageOff, Search } from "lucide-react";
 import { readCache, writeCache } from "@/lib/client-cache";
+import { Badge, Button, EmptyState, Input } from "@/components/ui";
 
 const PAGE_SIZE = 60;
 
@@ -100,9 +102,9 @@ export default function PostPicker({
 
   if (loading) {
     return (
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="aspect-square rounded bg-surface" />
+          <div key={i} className="aspect-square animate-pulse rounded-xl bg-surface-2" />
         ))}
       </div>
     );
@@ -110,19 +112,22 @@ export default function PostPicker({
 
   if (error) {
     return (
-      <div className="text-center py-8">
-        <p className="text-sm text-muted">{error}</p>
-        <p className="text-xs text-zinc-500 mt-1">Connect your Instagram account first</p>
-      </div>
+      <EmptyState
+        icon={AlertTriangle}
+        title="Couldn't load your posts"
+        description={
+          <>
+            {error}
+            <br />
+            Connect your Instagram account first.
+          </>
+        }
+      />
     );
   }
 
   if (posts.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-sm text-muted">No posts found</p>
-      </div>
-    );
+    return <EmptyState icon={ImageOff} title="No posts found" />;
   }
 
   const matching = query.trim()
@@ -136,20 +141,29 @@ export default function PostPicker({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            // Back to one batch on every new search. Without this, a grid
-            // expanded under an earlier query stays expanded once it is
-            // cleared, which is the case this whole change exists to avoid.
-            setShown(PAGE_SIZE);
-          }}
-          placeholder="Search your posts by caption…"
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-        />
-        <span className="shrink-0 text-xs text-muted">{posts.length}</span>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted"
+            aria-hidden="true"
+          />
+          <Input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              // Back to one batch on every new search. Without this, a grid
+              // expanded under an earlier query stays expanded once it is
+              // cleared, which is the case this whole change exists to avoid.
+              setShown(PAGE_SIZE);
+            }}
+            placeholder="Search your posts by caption…"
+            aria-label="Search your posts by caption"
+            className="pl-10"
+          />
+        </div>
+        <Badge tone="neutral" className="shrink-0">
+          {posts.length}
+        </Badge>
       </div>
       {visible.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted">
@@ -166,7 +180,7 @@ export default function PostPicker({
           {/* auto-rows-min + content-start keep each row at its natural height.
               Without them the rows share out max-h-64 instead of scrolling, and
               the square thumbnails flatten into strips. */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 auto-rows-min content-start overflow-y-auto p-1">
+          <div className="grid max-h-64 auto-rows-min grid-cols-3 content-start gap-2 overflow-y-auto p-1 sm:grid-cols-4">
             {visible.map((post) => {
               const isSelected = selectedPostId === post.id;
               const usedByName = usedPostIds?.[post.id];
@@ -176,71 +190,74 @@ export default function PostPicker({
               const showVideo =
                 isVideo && hoveredId === post.id && Boolean(post.media_url);
               return (
-          <button
-            key={post.id}
-            type="button"
-            onClick={() => onSelect(post.id, post.permalink, thumb, post.caption)}
-            onMouseEnter={() => setHoveredId(post.id)}
-            onMouseLeave={() =>
-              setHoveredId((cur) => (cur === post.id ? null : cur))
-            }
-            aria-pressed={isSelected}
-            title={isUsed ? `Already used by "${usedByName}"` : undefined}
-            className={`
-              relative aspect-square rounded overflow-hidden border-2
-              ${
-                isSelected
-                  ? "border-accent"
-                  : isUsed
-                    ? "border-warning/40 hover:border-warning/60"
-                    : "border-border hover:border-border-hover"
-              }
-            `}
-          >
-            {thumb ? (
-              <img
-                src={thumb}
-                alt={post.caption?.slice(0, 50) ?? "Instagram post"}
-                loading="lazy"
-                decoding="async"
-                className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
-              />
-            ) : (
-              <div className="w-full h-full bg-surface flex items-center justify-center">
-                <span className="text-xs text-muted">No image</span>
-              </div>
-            )}
-            {showVideo && (
-              <video
-                src={post.media_url}
-                poster={thumb}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="none"
-                className={`absolute inset-0 h-full w-full object-cover ${
-                  isUsed ? "opacity-60" : ""
-                }`}
-              />
-            )}
-            {isSelected && (
-              <span className="absolute bottom-0 inset-x-0 bg-accent text-white text-xs py-1">
-                Selected
-              </span>
-            )}
-          </button>
+                <button
+                  key={post.id}
+                  type="button"
+                  onClick={() => onSelect(post.id, post.permalink, thumb, post.caption)}
+                  onMouseEnter={() => setHoveredId(post.id)}
+                  onMouseLeave={() =>
+                    setHoveredId((cur) => (cur === post.id ? null : cur))
+                  }
+                  aria-pressed={isSelected}
+                  aria-label={post.caption?.slice(0, 60) ?? "Select Instagram post"}
+                  title={isUsed ? `Already used by "${usedByName}"` : undefined}
+                  className={`
+                    relative aspect-square overflow-hidden rounded-xl border-2 transition-colors
+                    ${
+                      isSelected
+                        ? "border-accent"
+                        : isUsed
+                          ? "border-warning/40 hover:border-warning/60"
+                          : "border-border hover:border-border-hover"
+                    }
+                  `}
+                >
+                  {thumb ? (
+                    <img
+                      src={thumb}
+                      alt={post.caption?.slice(0, 50) ?? "Instagram post"}
+                      loading="lazy"
+                      decoding="async"
+                      className={`h-full w-full object-cover ${isUsed ? "opacity-75" : ""}`}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-surface-2">
+                      <span className="text-xs text-muted">No image</span>
+                    </div>
+                  )}
+                  {showVideo && (
+                    <video
+                      src={post.media_url}
+                      poster={thumb}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="none"
+                      className={`absolute inset-0 h-full w-full object-cover ${
+                        isUsed ? "opacity-60" : ""
+                      }`}
+                    />
+                  )}
+                  {isSelected && (
+                    <span className="absolute inset-x-0 bottom-0 bg-accent py-1 text-xs font-semibold text-accent-foreground">
+                      Selected
+                    </span>
+                  )}
+                </button>
               );
             })}
           </div>
           {remaining > 0 && (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => setShown((n) => n + PAGE_SIZE)}
-              className="w-full rounded-lg border border-border py-2 text-sm text-muted hover:text-foreground"
+              className="w-full"
             >
               Show {Math.min(PAGE_SIZE, remaining)} more
-            </button>
+            </Button>
           )}
         </>
       )}

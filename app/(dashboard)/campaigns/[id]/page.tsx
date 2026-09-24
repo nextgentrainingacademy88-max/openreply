@@ -12,7 +12,28 @@ import { CAMPAIGN_DEFAULTS } from "@/lib/automations/defaults";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Link as LinkIcon,
+  MousePointerClick,
+  Pause,
+  Pencil,
+  Percent,
+  Play,
+  Send,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  StatCard,
+} from "@/components/ui";
 
 interface Campaign {
   id: string;
@@ -128,19 +149,22 @@ export default function CampaignDetailPage() {
   }
 
   if (loading) {
-    return <div className="panel h-64 rounded" />;
+    return <div className="panel h-64 animate-pulse rounded-2xl" />;
   }
   if (notFound || !campaign) {
     return (
-      <div className="panel rounded p-8 text-center">
-        <p className="text-sm text-muted">Campaign not found.</p>
-        <button
-          onClick={() => router.push("/campaigns")}
-          className="mt-4 rounded border border-border px-4 py-2 text-sm text-muted hover:text-foreground"
-        >
-          Back to campaigns
-        </button>
-      </div>
+      <Card>
+        <EmptyState
+          title="Campaign not found"
+          description="It may have been deleted, or the link is out of date."
+          action={
+            <Button variant="secondary" onClick={() => router.push("/campaigns")}>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to campaigns
+            </Button>
+          }
+        />
+      </Card>
     );
   }
 
@@ -163,39 +187,34 @@ export default function CampaignDetailPage() {
     : campaign.keywords.join(", ") || "No keywords";
 
   const metrics = [
-    { label: "Sends", value: campaign.analytics.sent },
-    { label: "Clicks", value: campaign.analytics.clicks },
-    { label: "CTR", value: `${campaign.analytics.ctr}%` },
-    { label: "Failed", value: campaign.analytics.failed },
+    { label: "Sends", value: campaign.analytics.sent, icon: Send },
+    { label: "Clicks", value: campaign.analytics.clicks, icon: MousePointerClick },
+    { label: "CTR", value: `${campaign.analytics.ctr}%`, icon: Percent },
+    { label: "Failed", value: campaign.analytics.failed, icon: XCircle },
     // Only a follow-gated campaign can tell who followed because of it.
     ...(campaign.requireFollow
-      ? [{ label: "New followers", value: campaign.analytics.newFollowers }]
+      ? [{ label: "New followers", value: campaign.analytics.newFollowers, icon: UserPlus }]
       : []),
   ];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-8">
       {/* Left: config summary */}
       <div className="space-y-6">
+        <Link
+          href="/campaigns"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Campaigns
+        </Link>
         <div className="flex items-center gap-2">
-          <Link
-            href="/campaigns"
-            className="text-sm text-muted hover:text-foreground"
-          >
-            &larr; Campaigns
-          </Link>
-        </div>
-        <div className="flex items-center gap-2">
-          <h1 className="truncate text-lg font-semibold">{campaign.name}</h1>
-          <span
-            className={`shrink-0 rounded px-2 py-0.5 text-xs font-semibold ${
-              campaign.isActive
-                ? "bg-success/10 text-success"
-                : "bg-zinc-500/10 text-muted"
-            }`}
-          >
+          <h1 className="truncate text-xl font-extrabold tracking-tight text-foreground">
+            {campaign.name}
+          </h1>
+          <Badge tone={campaign.isActive ? "success" : "neutral"}>
             {campaign.isActive ? "LIVE" : "Paused"}
-          </span>
+          </Badge>
         </div>
 
         <Summary title="When someone comments on">
@@ -205,10 +224,10 @@ export default function CampaignDetailPage() {
               <img
                 src={postThumb}
                 alt="Post"
-                className="h-14 w-14 rounded object-cover"
+                className="h-14 w-14 rounded-xl border border-border object-cover"
               />
             ) : (
-              <div className="grid h-14 w-14 place-items-center rounded bg-surface-hover text-[10px] text-muted">
+              <div className="grid h-14 w-14 place-items-center rounded-xl bg-surface-2 text-[10px] text-muted">
                 {campaign.matchAnyPost || campaign.pendingNextReel ? "Any" : "Post"}
               </div>
             )}
@@ -271,8 +290,9 @@ export default function CampaignDetailPage() {
             {campaign.trackedLinks
               ?.filter((link) => link.destinationUrl)
               .map((link, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="rounded border border-border bg-surface px-3 py-2">
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-start gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-2.5">
+                    <LinkIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
                     <p className="select-all break-all font-mono text-xs text-foreground">
                       {link.trackedUrl ?? link.destinationUrl}
                     </p>
@@ -300,8 +320,8 @@ export default function CampaignDetailPage() {
 
       {/* Right: top bar + tabs */}
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border pb-3">
-          <div className="flex gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border pb-4">
+          <div className="inline-flex shrink-0 rounded-full bg-surface-2 p-1">
             <TabButton active={tab === "insights"} onClick={() => setTab("insights")}>
               Insights
             </TabButton>
@@ -310,39 +330,40 @@ export default function CampaignDetailPage() {
             </TabButton>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href={`/campaigns/${campaign.id}/edit`}
-              className="rounded border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
-            >
+            <ButtonLink href={`/campaigns/${campaign.id}/edit`} variant="secondary" size="sm">
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
               Edit
-            </Link>
-            <button
+            </ButtonLink>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={toggleActive}
               disabled={busy}
-              className={`rounded border px-3 py-1.5 text-sm disabled:opacity-50 ${
+              className={
                 campaign.isActive
-                  ? "border-error/30 text-error hover:bg-error/10"
-                  : "border-success/30 text-success hover:bg-success/10"
-              }`}
+                  ? "border-error/30 text-error hover:border-error/30 hover:bg-error/10"
+                  : "border-success/30 text-success hover:border-success/30 hover:bg-success/10"
+              }
             >
+              {campaign.isActive ? (
+                <Pause className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
               {campaign.isActive ? "Stop" : "Resume"}
-            </button>
+            </Button>
           </div>
         </div>
 
         {tab === "insights" && (
           <div
-            className={`grid grid-cols-2 gap-4 ${
+            className={cn(
+              "grid grid-cols-2 gap-4",
               metrics.length > 4 ? "sm:grid-cols-5" : "sm:grid-cols-4"
-            }`}
+            )}
           >
             {metrics.map((m) => (
-              <div key={m.label} className="panel rounded p-4">
-                <p className="text-sm text-muted">{m.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-foreground">
-                  {m.value}
-                </p>
-              </div>
+              <StatCard key={m.label} label={m.label} value={m.value} icon={m.icon} />
             ))}
           </div>
         )}
@@ -406,8 +427,9 @@ function Summary({
         {editHref && (
           <Link
             href={editHref}
-            className="text-xs font-medium text-accent hover:underline"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
           >
+            <Pencil className="h-3 w-3" aria-hidden="true" />
             Edit
           </Link>
         )}
@@ -419,7 +441,7 @@ function Summary({
 
 function FieldBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground">
+    <div className="rounded-xl border border-border bg-surface-2 px-3.5 py-2.5 text-sm text-foreground">
       {children}
     </div>
   );
@@ -437,11 +459,12 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`border-b-2 pb-2 text-sm font-medium ${
+      className={cn(
+        "rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors",
         active
-          ? "border-accent text-foreground"
-          : "border-transparent text-muted hover:text-foreground"
-      }`}
+          ? "bg-surface text-foreground shadow-sm"
+          : "text-muted hover:text-foreground"
+      )}
     >
       {children}
     </button>

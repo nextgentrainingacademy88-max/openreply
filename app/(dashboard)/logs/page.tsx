@@ -7,8 +7,11 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatusBadge from "@/components/status-badge";
+import { Button, Card, EmptyState, PageHeader } from "@/components/ui";
+import { cn } from "@/lib/cn";
 
 interface DmLog {
   id: string;
@@ -98,22 +101,27 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
+      <PageHeader
+        title="Logs"
+        description="Every DM your campaigns have sent, skipped, or failed to send."
+      />
+
       {/* Filters */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map((status) => (
             <button
               key={status}
+              type="button"
               onClick={() => handleFilterChange(status)}
-              className={`
-                px-3 py-1.5 rounded-lg text-xs font-medium transition-all
-                ${
-                  statusFilter === status
-                    ? "bg-accent/15 text-accent border border-accent/20"
-                    : "bg-surface text-muted border border-border hover:border-border-hover hover:text-foreground"
-                }
-              `}
+              aria-pressed={statusFilter === status}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                statusFilter === status
+                  ? "border-transparent bg-accent-soft text-accent"
+                  : "border-border bg-surface text-muted hover:border-border-hover hover:text-foreground",
+              )}
             >
               {status === "ALL" ? "All" : status.replace("SKIPPED_", "").replace("_", " ")}
             </button>
@@ -129,19 +137,31 @@ export default function LogsPage() {
       </div>
 
       {/* Table */}
-      <div className="panel rounded overflow-hidden">
-        {/* Six columns don't fit a phone; the table keeps its width and scrolls
-            horizontally inside the panel rather than crushing every cell. */}
-        <div className="overflow-x-auto">
+      <Card>
+        {/* Six columns don't fit a phone; the table keeps its natural width and
+            scrolls horizontally inside the card rather than crushing every cell. */}
+        <div className="-mx-5 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Commenter</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Comment</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Campaign</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Account</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Status</th>
-                <th className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">Time</th>
+                <th className="py-3 pr-4 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Commenter
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Comment
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Campaign
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Account
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Status
+                </th>
+                <th className="py-3 pl-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Time
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -149,8 +169,8 @@ export default function LogsPage() {
                 <>
                   {[...Array(5)].map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={6} className="px-4 py-4 sm:px-6">
-                        <div className="h-4 bg-surface-hover rounded" />
+                      <td colSpan={6} className="py-4">
+                        <div className="h-4 animate-pulse rounded bg-surface-hover" />
                       </td>
                     </tr>
                   ))}
@@ -158,32 +178,36 @@ export default function LogsPage() {
               )}
               {!loading && logs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted sm:px-6">
-                    No logs found
+                  <td colSpan={6}>
+                    <EmptyState
+                      icon={Inbox}
+                      title="No logs found"
+                      description="DM activity for your campaigns will show up here."
+                    />
                   </td>
                 </tr>
               )}
               {!loading &&
                 logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-surface-hover/50 transition-colors">
-                    <td className="px-4 py-4 sm:px-6">
+                  <tr key={log.id} className="transition-colors hover:bg-surface-hover/50">
+                    <td className="py-4 pr-4">
                       <span className="font-medium text-foreground">
                         @{log.commenterName ?? log.commenterId.slice(0, 8)}
                       </span>
                     </td>
-                    <td className="px-4 py-4 max-w-[200px] sm:px-6">
-                      <span className="text-muted truncate block">{log.commentText}</span>
+                    <td className="max-w-[200px] px-3 py-4">
+                      <span className="block truncate text-muted">{log.commentText}</span>
                     </td>
-                    <td className="px-4 py-4 sm:px-6">
+                    <td className="px-3 py-4">
                       <span className="text-muted">{log.automation.name}</span>
                     </td>
-                    <td className="px-4 py-4 sm:px-6">
+                    <td className="px-3 py-4">
                       <span className="text-muted">@{log.instagramAccount.username}</span>
                     </td>
-                    <td className="px-4 py-4 sm:px-6">
+                    <td className="px-3 py-4">
                       <StatusBadge status={log.status} />
                     </td>
-                    <td className="px-4 py-4 text-muted whitespace-nowrap sm:px-6">
+                    <td className="whitespace-nowrap py-4 pl-3 text-muted">
                       {new Date(log.createdAt).toLocaleString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -199,40 +223,44 @@ export default function LogsPage() {
 
         {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-t border-border sm:px-6">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <p className="text-xs text-muted">
               Showing {(pagination.page - 1) * pagination.limit + 1}–
               {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
               {pagination.total}
             </p>
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={page <= 1}
                 onClick={() => {
                   setLoading(true);
                   setPage(page - 1);
                 }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
               >
+                <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
                 Previous
-              </button>
-              <span className="text-xs text-muted px-2">
+              </Button>
+              <span className="px-2 text-xs text-muted">
                 {page} / {pagination.totalPages}
               </span>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={page >= pagination.totalPages}
                 onClick={() => {
                   setLoading(true);
                   setPage(page + 1);
                 }}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-muted border border-border hover:text-foreground hover:border-border-hover transition-all disabled:opacity-30 disabled:pointer-events-none"
               >
                 Next
-              </button>
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

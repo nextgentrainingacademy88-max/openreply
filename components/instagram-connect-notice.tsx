@@ -1,6 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 type Tone = "error" | "warning" | "success";
 
@@ -8,6 +10,12 @@ const TONE_CLASSES: Record<Tone, string> = {
   error: "border-error/20 bg-error/10 text-error",
   warning: "border-warning/20 bg-warning/10 text-warning",
   success: "border-success/20 bg-success/10 text-success",
+};
+
+const TONE_ICONS: Record<Tone, LucideIcon> = {
+  error: XCircle,
+  warning: AlertTriangle,
+  success: CheckCircle2,
 };
 
 const MESSAGES: Record<string, { tone: Tone; title: string; detail: string }> = {
@@ -114,10 +122,14 @@ function Notice({
   title: string;
   children: React.ReactNode;
 }) {
+  const Icon = TONE_ICONS[tone];
   return (
-    <div className={`rounded border p-4 text-sm ${TONE_CLASSES[tone]}`}>
-      <p className="font-semibold">{title}</p>
-      <div className="mt-1 opacity-90">{children}</div>
+    <div className={`flex gap-3 rounded-2xl border p-4 text-sm ${TONE_CLASSES[tone]}`}>
+      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+      <div>
+        <p className="font-bold">{title}</p>
+        <div className="mt-1 opacity-90">{children}</div>
+      </div>
     </div>
   );
 }

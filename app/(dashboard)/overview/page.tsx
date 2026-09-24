@@ -9,9 +9,28 @@
  */
 
 import { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  Bookmark,
+  Eye,
+  Heart,
+  ImageOff,
+  MessageCircle,
+  Radar,
+  Share2,
+} from "lucide-react";
 import AccountSelect from "@/components/account-select";
-import StatCard from "@/components/stat-card";
 import FollowerChart from "@/components/follower-chart";
+import {
+  buttonClasses,
+  Card,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Select,
+  StatCard,
+} from "@/components/ui";
 import type { OverviewResponse } from "@/app/api/instagram/overview/route";
 
 function formatNumber(n: number | null): string {
@@ -75,9 +94,9 @@ export default function OverviewPage() {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="panel rounded p-4 h-24 sm:p-5">
-            <div className="h-4 w-16 bg-zinc-200 rounded" />
-            <div className="mt-3 h-6 w-20 bg-zinc-200/60 rounded" />
+          <div key={i} className="panel p-4 h-24 sm:p-5 animate-pulse">
+            <div className="h-4 w-16 bg-surface-hover rounded" />
+            <div className="mt-3 h-6 w-20 bg-surface-hover/60 rounded" />
           </div>
         ))}
       </div>
@@ -86,17 +105,22 @@ export default function OverviewPage() {
 
   if (error) {
     return (
-      <div className="panel rounded p-8 text-center">
-        <p className="text-sm text-error">{error}</p>
-        {error.includes("connect") && (
-          <a
-            href="/api/instagram/connect"
-            className="mt-4 inline-block text-sm text-accent hover:underline"
-          >
-            Connect Instagram
-          </a>
-        )}
-      </div>
+      <Card>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Couldn't load your overview"
+          description={error}
+          action={
+            error.includes("connect") ? (
+              // A real <a>, not next/link: this has to force a full browser
+              // navigation into the Meta OAuth handshake (see top-bar.tsx).
+              <a href="/api/instagram/connect" className={buttonClasses("primary", "md")}>
+                Connect Instagram
+              </a>
+            ) : undefined
+          }
+        />
+      </Card>
     );
   }
 
@@ -107,97 +131,115 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-foreground">Overview</h1>
-          <p className="text-sm text-muted mt-1">
+      <PageHeader
+        title="Overview"
+        description={
+          <>
             {data.requestedCount === "all" ? "All-time" : "Recent"} —{" "}
             {totals.posts} post{totals.posts === 1 ? "" : "s"} from @
             {data.account.username}
             {data.truncated ? ` (capped at ${totals.posts})` : ""}
-          </p>
-          {followers !== null && (
-            // Kept out of the tile row below: that row sums the selected posts,
-            // whereas this is a current account-level total.
-            <p className="mt-1 text-sm text-muted">
-              {followers.toLocaleString()} followers
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Range
-            </span>
-            <select
-              value={count}
-              onChange={(e) => handleCountChange(e.target.value)}
-              className="border-0 bg-transparent py-2 pr-1 text-sm text-foreground outline-none"
-            >
-              {COUNT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {accounts.length > 1 && (
-            <AccountSelect
-              accounts={accounts.map((a) => ({
-                id: a.id,
-                username: a.username,
-                instagramId: a.id,
-              }))}
-              value={selectedAccountId}
-              onChange={handleAccountChange}
-            />
-          )}
-        </div>
-      </div>
+            {followers !== null && (
+              // Kept alongside the post-range summary: that summary describes
+              // the selected posts, whereas this is a current account-level total.
+              <>
+                {" · "}
+                {followers.toLocaleString()} followers
+              </>
+            )}
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <label className="flex flex-col gap-2 text-sm">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Range
+              </span>
+              <Select
+                value={count}
+                onChange={(e) => handleCountChange(e.target.value)}
+                className="min-w-32"
+              >
+                {COUNT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {accounts.length > 1 && (
+              <AccountSelect
+                accounts={accounts.map((a) => ({
+                  id: a.id,
+                  username: a.username,
+                  instagramId: a.id,
+                }))}
+                value={selectedAccountId}
+                onChange={handleAccountChange}
+              />
+            )}
+          </div>
+        }
+      />
 
       {!insightsAvailable && (
-        <div className="panel rounded p-4 border border-border">
-          <p className="text-sm text-foreground">
-            Views, reach, saved and shares need the insights permission.
-          </p>
-          <p className="text-sm text-muted mt-1">
-            Reconnect your account to grant it — likes and comments are shown in
-            the meantime.
-          </p>
-          <a
-            href="/api/instagram/connect"
-            className="mt-3 inline-block text-sm text-accent hover:underline"
-          >
-            Reconnect Instagram
-          </a>
-        </div>
+        <Card className="border-warning/30 bg-warning/5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+              <AlertTriangle className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">
+                Views, reach, saved and shares need the insights permission.
+              </p>
+              <p className="text-sm text-muted mt-1">
+                Reconnect your account to grant it — likes and comments are shown in
+                the meantime.
+              </p>
+              {/* A real <a>, not next/link: see top-bar.tsx — this must force a
+                  full browser navigation into the Meta OAuth handshake. */}
+              <a
+                href="/api/instagram/connect"
+                className={buttonClasses("secondary", "sm", "mt-3")}
+              >
+                Reconnect Instagram
+              </a>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* Aggregate totals */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        <StatCard label="Views" value={formatNumber(totals.views)} />
-        <StatCard label="Reach" value={formatNumber(totals.reach)} />
-        <StatCard label="Likes" value={formatNumber(totals.likes)} />
-        <StatCard label="Comments" value={formatNumber(totals.comments)} />
-        <StatCard label="Saved" value={formatNumber(totals.saved)} />
-        <StatCard label="Shares" value={formatNumber(totals.shares)} />
+        <StatCard label="Views" value={formatNumber(totals.views)} icon={Eye} />
+        <StatCard label="Reach" value={formatNumber(totals.reach)} icon={Radar} />
+        <StatCard label="Likes" value={formatNumber(totals.likes)} icon={Heart} />
+        <StatCard
+          label="Comments"
+          value={formatNumber(totals.comments)}
+          icon={MessageCircle}
+        />
+        <StatCard label="Saved" value={formatNumber(totals.saved)} icon={Bookmark} />
+        <StatCard label="Shares" value={formatNumber(totals.shares)} icon={Share2} />
       </div>
 
       {/* Follower trend — account-level, independent of the post range */}
       <FollowerChart data={followerHistory} followers={followers} />
 
       {/* Per-post table */}
-      <div className="panel rounded p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Posts</h2>
+      <Card>
+        <CardHeader>
+          <CardTitle>Posts</CardTitle>
+        </CardHeader>
         {posts.length === 0 ? (
-          <p className="text-sm text-muted py-8 text-center">No posts found</p>
+          <EmptyState icon={ImageOff} title="No posts found" />
         ) : (
           // Eight metric columns can't compress into a phone; let the table keep
-          // its natural width and scroll inside the panel instead.
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          // its natural width and scroll inside the card instead.
+          <div className="-mx-5 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-zinc-500 border-b border-border">
+                <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border">
                   <th className="py-2 pr-4 font-medium">Post</th>
                   <th className="py-2 px-3 font-medium text-right">Views</th>
                   <th className="py-2 px-3 font-medium text-right">Reach</th>
@@ -248,7 +290,7 @@ export default function OverviewPage() {
                     <td className="py-3 px-3 text-right text-muted">
                       {formatNumber(p.shares)}
                     </td>
-                    <td className="py-3 pl-3 text-right text-zinc-500">
+                    <td className="py-3 pl-3 text-right text-muted">
                       {formatDate(p.timestamp)}
                     </td>
                   </tr>
@@ -257,7 +299,7 @@ export default function OverviewPage() {
             </table>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

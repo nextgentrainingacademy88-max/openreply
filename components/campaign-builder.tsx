@@ -3,8 +3,8 @@
 /**
  * Campaign Builder
  *
- * Two-pane campaign editor: a control panel on the left and a live phone
- * preview on the right. Used for both creating and editing a campaign.
+ * Two-pane campaign editor: a numbered flow of steps on the left and a live
+ * phone preview on the right. Used for both creating and editing a campaign.
  *
  * Turn 1 wires the fully-functional pieces: trigger scope (specific / any /
  * next post), match mode (specific words / any word), the opening + reveal DM
@@ -13,17 +13,30 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Zap,
+  MessageSquareReply,
+  Send,
+  UserPlus,
+  Link2,
+  Clock,
+  Plus,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import PostPicker from "@/components/post-picker";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { CAMPAIGN_DEFAULTS } from "@/lib/automations/defaults";
+import { cn } from "@/lib/cn";
 import {
   IMPORT_QUEUE_KEY,
   IMPORT_ACCOUNT_KEY,
   type ImportRow,
 } from "@/lib/import-queue";
+import { Button, Badge, Card, CardTitle, Input, Textarea, Toggle } from "@/components/ui";
 
 type TriggerScope = "specific" | "any" | "next";
 type MatchMode = "specific" | "any";
@@ -62,21 +75,7 @@ interface CampaignBuilderProps {
   campaignId?: string;
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
+/** A single choice in a Radio group — rounded, bordered, orange when picked. */
 function Radio({
   checked,
   onSelect,
@@ -90,14 +89,18 @@ function Radio({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-        checked ? "border-accent bg-accent/5" : "border-border hover:border-border-hover"
-      }`}
+      className={cn(
+        "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+        checked
+          ? "border-accent bg-accent-soft"
+          : "border-border hover:border-border-hover"
+      )}
     >
       <span
-        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
-          checked ? "border-accent" : "border-zinc-500"
-        }`}
+        className={cn(
+          "grid h-4 w-4 shrink-0 place-items-center rounded-full border-2",
+          checked ? "border-accent" : "border-border-hover"
+        )}
       >
         {checked && <span className="h-2 w-2 rounded-full bg-accent" />}
       </span>
@@ -106,6 +109,7 @@ function Radio({
   );
 }
 
+/** Shows only once the field has drifted from the owner's default wording. */
 function ResetToDefault({
   value,
   defaultValue,
@@ -120,34 +124,66 @@ function ResetToDefault({
     <button
       type="button"
       onClick={onReset}
-      className="text-xs font-medium text-accent hover:underline"
+      className="text-xs font-semibold text-accent hover:underline"
     >
       Reset to my default
     </button>
   );
 }
 
-function Toggle({
-  on,
-  onToggle,
+/** The numbered, iconed circle at the head of each flow step. */
+function FlowStepIcon({ icon: Icon, active }: { icon: LucideIcon; active: boolean }) {
+  return (
+    <div
+      className={cn(
+        "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-background transition-colors",
+        active ? "border-accent text-accent" : "border-border text-muted"
+      )}
+    >
+      <Icon className="h-[18px] w-[18px]" />
+    </div>
+  );
+}
+
+/**
+ * One card in the campaign flow: a numbered/iconed circle connected to the
+ * next step by a vertical line, a title + helper line, an optional toggle in
+ * the header (for steps that can be switched off), and body content.
+ */
+function FlowStep({
+  number,
+  icon,
+  title,
+  helper,
+  active = true,
+  toggle,
+  children,
 }: {
-  on: boolean;
-  onToggle: () => void;
+  number: number;
+  icon: LucideIcon;
+  title: string;
+  helper: string;
+  active?: boolean;
+  toggle?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-        on ? "bg-accent" : "bg-zinc-300"
-      }`}
-    >
-      <span
-        className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${
-          on ? "left-6" : "left-1"
-        }`}
-      />
-    </button>
+    <div className="relative flex gap-4">
+      <FlowStepIcon icon={icon} active={active} />
+      <Card className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[11px] font-bold tracking-wide text-muted">
+              STEP {number}
+            </span>
+            <CardTitle className="mt-0.5">{title}</CardTitle>
+            <p className="mt-1 text-xs text-muted">{helper}</p>
+          </div>
+          {toggle && <div className="shrink-0 pt-0.5">{toggle}</div>}
+        </div>
+        {children && <div className="mt-4 space-y-3">{children}</div>}
+      </Card>
+    </div>
   );
 }
 
@@ -576,19 +612,20 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   }
 
   if (loading) {
-    return <div className="panel h-64 rounded" />;
+    return <div className="panel h-64 rounded-2xl animate-pulse" />;
   }
 
   if (notFound) {
     return (
-      <div className="panel rounded p-8 text-center">
+      <div className="panel rounded-2xl p-8 text-center">
         <p className="text-sm text-muted">Campaign not found.</p>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => router.push("/campaigns")}
-          className="mt-4 rounded border border-border px-4 py-2 text-sm text-muted hover:text-foreground"
+          className="mt-4"
         >
           Back to campaigns
-        </button>
+        </Button>
       </div>
     );
   }
@@ -596,8 +633,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   return (
     <div className="space-y-6">
       {importQueue && (
-        <div className="rounded border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
-          <span className="font-medium text-foreground">
+        <div className="rounded-xl border border-accent/30 bg-accent-soft px-4 py-3 text-sm">
+          <span className="font-semibold text-foreground">
             Importing {importTotal - importQueue.length + 1} of {importTotal}.
           </span>{" "}
           <span className="text-muted">
@@ -615,13 +652,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               <span className="truncate text-sm font-semibold text-foreground">
                 {name || "Untitled campaign"}
               </span>
-              <span
-                className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                  isActive ? "bg-success/15 text-success" : "bg-zinc-500/15 text-muted"
-                }`}
-              >
+              <Badge tone={isActive ? "success" : "neutral"}>
                 {isActive ? "LIVE" : "PAUSED"}
-              </span>
+              </Badge>
             </>
           ) : (
             <span className="text-sm text-muted">New campaign</span>
@@ -629,71 +662,60 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </div>
         <div className="ml-auto flex items-center gap-2">
           {importQueue && (
-            <button
-              type="button"
-              onClick={skipRow}
-              disabled={saving}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
-            >
+            <Button variant="secondary" onClick={skipRow} disabled={saving}>
               {importQueue.length > 1 ? "Skip" : "Skip & finish"}
-            </button>
+            </Button>
           )}
           {mode === "edit" &&
             (isActive ? (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => handleSubmit(false)}
                 disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
               >
                 Stop
-              </button>
+              </Button>
             ) : (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => handleSubmit(true)}
                 disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
               >
                 Go Live
-              </button>
+              </Button>
             ))}
-          <button
-            type="button"
-            onClick={() => handleSubmit(mode === "new" ? true : isActive)}
-            disabled={saving}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-          >
+          <Button onClick={() => handleSubmit(mode === "new" ? true : isActive)} disabled={saving}>
             {saving ? "Saving…" : mode === "new" ? "Go Live" : "Save changes"}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* min-w-0 on the cells: a grid item defaults to min-width:auto, so a
           long string widens the whole page instead of wrapping. */}
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:gap-8">
-      {/* Left: controls */}
-      <div className="space-y-8 min-w-0">
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px] lg:gap-8">
+      {/* Left: the flow */}
+      <div className="min-w-0 space-y-5">
         {error && (
-          <div className="rounded border border-error/20 bg-error/10 p-3 text-sm text-error">
+          <div className="rounded-xl border border-error/20 bg-error/10 p-3 text-sm text-error">
             {error}
           </div>
         )}
 
-        <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground">
-            Campaign name{" "}
-            <span className="font-normal text-muted">(optional)</span>
+        <Card>
+          <label className="block space-y-2">
+            <span className="text-sm font-semibold text-foreground">
+              Campaign name{" "}
+              <span className="font-normal text-muted">(optional)</span>
+            </span>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. YC referral"
+              maxLength={100}
+            />
           </label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. YC referral"
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-            maxLength={100}
-          />
           {accounts.length > 1 && (
-            <div className="pt-2">
+            <div className="mt-3">
               <AccountSelect
                 accounts={accounts}
                 value={selectedAccountId}
@@ -708,340 +730,378 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               />
             </div>
           )}
-        </div>
+        </Card>
 
-        <Section title="When someone comments on">
-          <Radio
-            checked={triggerScope === "specific"}
-            onSelect={() => setTriggerScope("specific")}
-          >
-            a specific post or reel
-          </Radio>
-          {triggerScope === "specific" && (
-            <div className="rounded-lg border border-border p-2">
-              <PostPicker
-                selectedPostId={postId}
-                instagramAccountId={selectedAccountId}
-                usedPostIds={usedPosts}
-                onSelect={handlePostSelect}
-              />
-            </div>
-          )}
-          <Radio
-            checked={triggerScope === "any"}
-            onSelect={() => setTriggerScope("any")}
-          >
-            any post or reel
-          </Radio>
-          <Radio
-            checked={triggerScope === "next"}
-            onSelect={() => setTriggerScope("next")}
-          >
-            next post or reel
-          </Radio>
-        </Section>
+        {/* The flow: a numbered, connected chain of steps. */}
+        <div className="relative">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-2 left-5 top-2 w-px bg-border"
+          />
+          <div className="space-y-5">
+            <FlowStep
+              number={1}
+              icon={Zap}
+              title="Trigger"
+              helper="Start when someone comments — or DMs — on your account."
+              active
+            >
+              <div className="space-y-2">
+                <Radio
+                  checked={triggerScope === "specific"}
+                  onSelect={() => setTriggerScope("specific")}
+                >
+                  a specific post or reel
+                </Radio>
+                {triggerScope === "specific" && (
+                  <div className="rounded-xl border border-border p-2">
+                    <PostPicker
+                      selectedPostId={postId}
+                      instagramAccountId={selectedAccountId}
+                      usedPostIds={usedPosts}
+                      onSelect={handlePostSelect}
+                    />
+                  </div>
+                )}
+                <Radio
+                  checked={triggerScope === "any"}
+                  onSelect={() => setTriggerScope("any")}
+                >
+                  any post or reel
+                </Radio>
+                <Radio
+                  checked={triggerScope === "next"}
+                  onSelect={() => setTriggerScope("next")}
+                >
+                  next post or reel
+                </Radio>
+              </div>
 
-        <Section title="And this comment has">
-          <Radio
-            checked={matchMode === "specific"}
-            onSelect={() => setMatchMode("specific")}
-          >
-            a specific word or words
-          </Radio>
-          {matchMode === "specific" && (
-            <div className="space-y-1">
-              <input
-                value={keywordText}
-                onChange={(e) => setKeywordText(e.target.value)}
-                placeholder="Enter a word or multiple"
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-              />
-              <p className="text-xs text-muted">Use commas to separate words</p>
-            </div>
-          )}
-          <Radio
-            checked={matchMode === "any"}
-            onSelect={() => setMatchMode("any")}
-          >
-            any word
-          </Radio>
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-            <span className="text-sm text-foreground">
-              also reply when someone DMs{" "}
-              {matchMode === "any" ? "anything" : "these words"}
-            </span>
-            <Toggle
-              on={dmTriggerEnabled}
-              onToggle={() => setDmTriggerEnabled(!dmTriggerEnabled)}
-            />
-          </div>
-          {dmTriggerEnabled && (
-            <p className="text-xs text-muted">
-              {matchMode === "any"
-                ? "Every DM to this account gets the reply below — use with care."
-                : "A DM containing any of these words gets the same reply, no comment needed."}
-            </p>
-          )}
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-            <span className="text-sm text-foreground">
-              reply to their comments under the post
-            </span>
-            <Toggle
-              on={publicReplyEnabled}
-              onToggle={() => setPublicReplyEnabled(!publicReplyEnabled)}
-            />
-          </div>
-          {publicReplyEnabled && (
-            <div className="space-y-2">
-              {publicReplyMessages.map((msg, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    value={msg}
-                    onChange={(e) =>
-                      setPublicReplyMessages((prev) =>
-                        prev.map((m, idx) => (idx === i ? e.target.value : m))
-                      )
-                    }
-                    placeholder={CAMPAIGN_DEFAULTS.publicReplyMessages[0]}
-                    maxLength={1000}
-                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                  />
-                  {publicReplyMessages.length > 1 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-xs font-semibold text-foreground">
+                  And the comment has
+                </p>
+                <Radio
+                  checked={matchMode === "specific"}
+                  onSelect={() => setMatchMode("specific")}
+                >
+                  a specific word or words
+                </Radio>
+                {matchMode === "specific" && (
+                  <div className="space-y-1">
+                    <Input
+                      value={keywordText}
+                      onChange={(e) => setKeywordText(e.target.value)}
+                      placeholder="Enter a word or multiple"
+                    />
+                    <p className="text-xs text-muted">Use commas to separate words</p>
+                  </div>
+                )}
+                <Radio
+                  checked={matchMode === "any"}
+                  onSelect={() => setMatchMode("any")}
+                >
+                  any word
+                </Radio>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5">
+                <span className="text-sm text-foreground">
+                  also reply when someone DMs{" "}
+                  {matchMode === "any" ? "anything" : "these words"}
+                </span>
+                <Toggle
+                  checked={dmTriggerEnabled}
+                  onChange={setDmTriggerEnabled}
+                  aria-label="Also reply when someone DMs"
+                />
+              </div>
+              {dmTriggerEnabled && (
+                <p className="text-xs text-muted">
+                  {matchMode === "any"
+                    ? "Every DM to this account gets the reply below — use with care."
+                    : "A DM containing any of these words gets the same reply, no comment needed."}
+                </p>
+              )}
+            </FlowStep>
+
+            <FlowStep
+              number={2}
+              icon={MessageSquareReply}
+              title="Public reply"
+              helper="Reply publicly under their comment, right away."
+              active={publicReplyEnabled}
+              toggle={
+                <Toggle
+                  checked={publicReplyEnabled}
+                  onChange={setPublicReplyEnabled}
+                  aria-label="Enable public reply"
+                />
+              }
+            >
+              {publicReplyEnabled && (
+                <div className="space-y-2">
+                  {publicReplyMessages.map((msg, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={msg}
+                        onChange={(e) =>
+                          setPublicReplyMessages((prev) =>
+                            prev.map((m, idx) => (idx === i ? e.target.value : m))
+                          )
+                        }
+                        placeholder={CAMPAIGN_DEFAULTS.publicReplyMessages[0]}
+                        maxLength={1000}
+                      />
+                      {publicReplyMessages.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPublicReplyMessages((prev) =>
+                              prev.filter((_, idx) => idx !== i)
+                            )
+                          }
+                          className="shrink-0 rounded-lg p-2 text-muted hover:bg-surface-hover hover:text-error"
+                          aria-label="Remove reply"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {publicReplyMessages.length < 10 && (
                     <button
                       type="button"
                       onClick={() =>
-                        setPublicReplyMessages((prev) =>
-                          prev.filter((_, idx) => idx !== i)
-                        )
+                        setPublicReplyMessages((prev) => [...prev, ""])
                       }
-                      className="shrink-0 px-2 text-muted hover:text-error"
-                      aria-label="Remove reply"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
                     >
-                      ✕
+                      <Plus className="h-3.5 w-3.5" /> Add another reply
+                    </button>
+                  )}
+                  <p className="text-xs text-muted">
+                    One is picked at random each time, so replies don&apos;t look
+                    identical.
+                  </p>
+                </div>
+              )}
+            </FlowStep>
+
+            <FlowStep
+              number={3}
+              icon={Send}
+              title="Opening DM"
+              helper="Ask them to tap a button before the link goes out."
+              active={openingDmEnabled}
+              toggle={
+                <Toggle
+                  checked={openingDmEnabled}
+                  onChange={setOpeningDmEnabled}
+                  aria-label="Enable opening DM"
+                />
+              }
+            >
+              {openingDmEnabled && (
+                <div className="space-y-2">
+                  <Textarea
+                    value={openingDmMessage}
+                    onChange={(e) => setOpeningDmMessage(e.target.value)}
+                    placeholder={CAMPAIGN_DEFAULTS.openingDmMessage}
+                    rows={3}
+                    className="resize-none"
+                    maxLength={1000}
+                  />
+                  <ResetToDefault
+                    value={openingDmMessage}
+                    defaultValue={CAMPAIGN_DEFAULTS.openingDmMessage}
+                    onReset={() => setOpeningDmMessage(CAMPAIGN_DEFAULTS.openingDmMessage)}
+                  />
+                  <Input
+                    value={openingDmButtonLabel}
+                    onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
+                    placeholder={CAMPAIGN_DEFAULTS.openingDmButtonLabel}
+                    maxLength={20}
+                  />
+                </div>
+              )}
+            </FlowStep>
+
+            <FlowStep
+              number={4}
+              icon={UserPlus}
+              title="Follow gate"
+              helper="Require a follow before the link is sent."
+              active={requireFollow}
+              toggle={
+                <Toggle
+                  checked={requireFollow}
+                  onChange={setRequireFollow}
+                  aria-label="Require follow before sending the link"
+                />
+              }
+            >
+              {requireFollow && (
+                <div className="space-y-2">
+                  <Textarea
+                    value={followPromptMessage}
+                    onChange={(e) => setFollowPromptMessage(e.target.value)}
+                    placeholder={CAMPAIGN_DEFAULTS.followPromptMessage}
+                    rows={3}
+                    className="resize-none"
+                    maxLength={1000}
+                  />
+                  <ResetToDefault
+                    value={followPromptMessage}
+                    defaultValue={CAMPAIGN_DEFAULTS.followPromptMessage}
+                    onReset={() => setFollowPromptMessage(CAMPAIGN_DEFAULTS.followPromptMessage)}
+                  />
+                  <Input
+                    value={followPromptButtonLabel}
+                    onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
+                    placeholder={CAMPAIGN_DEFAULTS.followPromptButtonLabel}
+                    maxLength={20}
+                  />
+                  <p className="text-xs text-muted">
+                    We send the link only after they tap the button and Instagram
+                    confirms the follow. If it can&apos;t be verified, we send it
+                    anyway.
+                  </p>
+                </div>
+              )}
+            </FlowStep>
+
+            <FlowStep
+              number={5}
+              icon={Link2}
+              title="DM with link"
+              helper="The main message — this is what actually gets sent."
+              active
+            >
+              <Textarea
+                value={dmMessage}
+                onChange={(e) => setDmMessage(e.target.value)}
+                placeholder="Write a message"
+                rows={3}
+                className="resize-none"
+                maxLength={1000}
+              />
+              <ResetToDefault
+                value={dmMessage}
+                defaultValue={CAMPAIGN_DEFAULTS.dmMessage}
+                onReset={() => setDmMessage(CAMPAIGN_DEFAULTS.dmMessage)}
+              />
+              {linkOpen ? (
+                <div className="space-y-2">
+                  <Input
+                    value={trackedDestinationUrl}
+                    onChange={(e) => setTrackedDestinationUrl(e.target.value)}
+                    onBlur={ensureLinkToken}
+                    placeholder="https://yourlink.com/offer"
+                  />
+                  <Input
+                    value={linkButtonLabel}
+                    onChange={(e) => setLinkButtonLabel(e.target.value)}
+                    placeholder="Button label (e.g. Open link)"
+                    maxLength={20}
+                  />
+                  {secondLinkOpen ? (
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <Input
+                        value={secondaryDestinationUrl}
+                        onChange={(e) => setSecondaryDestinationUrl(e.target.value)}
+                        placeholder="https://yourlink.com/second"
+                      />
+                      <Input
+                        value={secondaryButtonLabel}
+                        onChange={(e) => setSecondaryButtonLabel(e.target.value)}
+                        placeholder="Second button label"
+                        maxLength={20}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSecondLinkOpen(true)}
+                      className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-border py-2 text-sm text-muted hover:border-border-hover hover:text-foreground"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add a second link
                     </button>
                   )}
                 </div>
-              ))}
-              {publicReplyMessages.length < 10 && (
+              ) : (
                 <button
                   type="button"
-                  onClick={() =>
-                    setPublicReplyMessages((prev) => [...prev, ""])
-                  }
-                  className="text-xs font-medium text-accent hover:underline"
+                  onClick={() => setLinkOpen(true)}
+                  className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-border py-2 text-sm text-muted hover:border-border-hover hover:text-foreground"
                 >
-                  + Add another reply
+                  <Plus className="h-3.5 w-3.5" /> Add a link
                 </button>
               )}
               <p className="text-xs text-muted">
-                One is picked at random each time, so replies don&apos;t look
-                identical.
+                {"{link}"} inserts the tracked link; {"{username}"} personalizes.
               </p>
-            </div>
-          )}
-        </Section>
+            </FlowStep>
 
-        <Section title="They will get">
-          <div className="rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">an opening DM</span>
-              <Toggle
-                on={openingDmEnabled}
-                onToggle={() => setOpeningDmEnabled(!openingDmEnabled)}
-              />
-            </div>
-            {openingDmEnabled && (
-              <div className="mt-3 space-y-2">
-                <textarea
-                  value={openingDmMessage}
-                  onChange={(e) => setOpeningDmMessage(e.target.value)}
-                  placeholder={CAMPAIGN_DEFAULTS.openingDmMessage}
-                  rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
-                  maxLength={1000}
+            <FlowStep
+              number={6}
+              icon={Clock}
+              title="Follow-up"
+              helper="A thank-you message sent after they tap the link."
+              active={followUpEnabled}
+              toggle={
+                <Toggle
+                  checked={followUpEnabled}
+                  onChange={setFollowUpEnabled}
+                  aria-label="Enable follow-up message"
                 />
-                <ResetToDefault
-                  value={openingDmMessage}
-                  defaultValue={CAMPAIGN_DEFAULTS.openingDmMessage}
-                  onReset={() => setOpeningDmMessage(CAMPAIGN_DEFAULTS.openingDmMessage)}
-                />
-                <input
-                  value={openingDmButtonLabel}
-                  onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
-                  placeholder={CAMPAIGN_DEFAULTS.openingDmButtonLabel}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                  maxLength={64}
-                />
-              </div>
-            )}
-          </div>
-          <div className="mt-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">
-                a follow requirement first
-              </span>
-              <Toggle
-                on={requireFollow}
-                onToggle={() => setRequireFollow(!requireFollow)}
-              />
-            </div>
-            {requireFollow && (
-              <div className="mt-3 space-y-2">
-                <textarea
-                  value={followPromptMessage}
-                  onChange={(e) => setFollowPromptMessage(e.target.value)}
-                  placeholder={CAMPAIGN_DEFAULTS.followPromptMessage}
-                  rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
-                  maxLength={1000}
-                />
-                <ResetToDefault
-                  value={followPromptMessage}
-                  defaultValue={CAMPAIGN_DEFAULTS.followPromptMessage}
-                  onReset={() => setFollowPromptMessage(CAMPAIGN_DEFAULTS.followPromptMessage)}
-                />
-                <input
-                  value={followPromptButtonLabel}
-                  onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
-                  placeholder={CAMPAIGN_DEFAULTS.followPromptButtonLabel}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                  maxLength={20}
-                />
-                <p className="text-xs text-muted">
-                  We send the link only after they tap the button and Instagram
-                  confirms the follow. If it can&apos;t be verified, we send it
-                  anyway.
-                </p>
-              </div>
-            )}
-          </div>
-        </Section>
-
-        <Section title="And then, they will get">
-          <div className="rounded-lg border border-border p-3 space-y-2">
-            <span className="text-sm text-foreground">a DM with a link</span>
-            <textarea
-              value={dmMessage}
-              onChange={(e) => setDmMessage(e.target.value)}
-              placeholder="Write a message"
-              rows={3}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
-              maxLength={1000}
-            />
-                <ResetToDefault
-                  value={dmMessage}
-                  defaultValue={CAMPAIGN_DEFAULTS.dmMessage}
-                  onReset={() => setDmMessage(CAMPAIGN_DEFAULTS.dmMessage)}
-                />
-            {linkOpen ? (
-              <div className="space-y-2">
-                <input
-                  value={trackedDestinationUrl}
-                  onChange={(e) => setTrackedDestinationUrl(e.target.value)}
-                  onBlur={ensureLinkToken}
-                  placeholder="https://yourlink.com/offer"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                />
-                <input
-                  value={linkButtonLabel}
-                  onChange={(e) => setLinkButtonLabel(e.target.value)}
-                  placeholder="Button label (e.g. Open link)"
-                  maxLength={20}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                />
-                {secondLinkOpen ? (
-                  <div className="space-y-2 border-t border-border pt-2">
-                    <input
-                      value={secondaryDestinationUrl}
-                      onChange={(e) => setSecondaryDestinationUrl(e.target.value)}
-                      placeholder="https://yourlink.com/second"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                    />
-                    <input
-                      value={secondaryButtonLabel}
-                      onChange={(e) => setSecondaryButtonLabel(e.target.value)}
-                      placeholder="Second button label"
-                      maxLength={20}
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setSecondLinkOpen(true)}
-                    className="w-full rounded-lg border border-border py-2 text-sm text-muted hover:text-foreground"
-                  >
-                    + Add A Second Link
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setLinkOpen(true)}
-                className="w-full rounded-lg border border-border py-2 text-sm text-muted hover:text-foreground"
-              >
-                + Add A Link
-              </button>
-            )}
-            <p className="text-xs text-muted">
-              {"{link}"} inserts the tracked link; {"{username}"} personalizes.
-            </p>
-          </div>
-          <div className="mt-3 rounded-lg border border-border p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-foreground">
-                a follow-up thank-you message
-              </span>
-              <Toggle
-                on={followUpEnabled}
-                onToggle={() => setFollowUpEnabled(!followUpEnabled)}
-              />
-            </div>
-            {followUpEnabled && (
-              <div className="mt-3 space-y-2">
-                <textarea
-                  value={followUpMessage}
-                  onChange={(e) => setFollowUpMessage(e.target.value)}
-                  placeholder={CAMPAIGN_DEFAULTS.followUpMessage}
-                  rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
-                  maxLength={1000}
-                />
-                <ResetToDefault
-                  value={followUpMessage}
-                  defaultValue={CAMPAIGN_DEFAULTS.followUpMessage}
-                  onReset={() => setFollowUpMessage(CAMPAIGN_DEFAULTS.followUpMessage)}
-                />
-                <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
-                  <span className="text-xs text-muted">Send it</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={1440}
-                    value={followUpDelayMinutes}
-                    onChange={(e) =>
-                      setFollowUpDelayMinutes(
-                        Math.max(0, Math.min(1440, Math.floor(Number(e.target.value) || 0)))
-                      )
-                    }
-                    className="w-20 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:border-accent/40 focus:outline-none"
+              }
+            >
+              {followUpEnabled && (
+                <div className="space-y-2">
+                  <Textarea
+                    value={followUpMessage}
+                    onChange={(e) => setFollowUpMessage(e.target.value)}
+                    placeholder={CAMPAIGN_DEFAULTS.followUpMessage}
+                    rows={3}
+                    className="resize-none"
+                    maxLength={1000}
                   />
-                  <span className="text-xs text-muted">
-                    minutes after the link
-                  </span>
+                  <ResetToDefault
+                    value={followUpMessage}
+                    defaultValue={CAMPAIGN_DEFAULTS.followUpMessage}
+                    onReset={() => setFollowUpMessage(CAMPAIGN_DEFAULTS.followUpMessage)}
+                  />
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                    <span className="text-xs text-muted">Send it</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={1440}
+                      value={followUpDelayMinutes}
+                      onChange={(e) =>
+                        setFollowUpDelayMinutes(
+                          Math.max(0, Math.min(1440, Math.floor(Number(e.target.value) || 0)))
+                        )
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-xs text-muted">
+                      minutes after the link
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted">
+                    {followUpDelayMinutes > 0
+                      ? `Sent ${followUpDelayMinutes} min after they tap through.`
+                      : "Sent right after they tap through."}
+                    {" {username}"} personalizes it. Max 24 hours, to stay inside
+                    Instagram&apos;s messaging window.
+                  </p>
                 </div>
-                <p className="text-xs text-muted">
-                  {followUpDelayMinutes > 0
-                    ? `Sent ${followUpDelayMinutes} min after they tap through.`
-                    : "Sent right after they tap through."}
-                  {" {username}"} personalizes it. Max 24 hours, to stay inside
-                  Instagram&apos;s messaging window.
-                </p>
-              </div>
-            )}
+              )}
+            </FlowStep>
           </div>
-        </Section>
+        </div>
       </div>
 
       {/* Right: preview */}

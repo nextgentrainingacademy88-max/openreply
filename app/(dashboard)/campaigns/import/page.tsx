@@ -10,9 +10,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertCircle, Upload } from "lucide-react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { parseCsv } from "@/lib/utils/csv";
 import { IMPORT_QUEUE_KEY, IMPORT_ACCOUNT_KEY } from "@/lib/import-queue";
+import { Button, Card, PageHeader, Textarea } from "@/components/ui";
 
 const SAMPLE = `keywords,dm_message,public_reply,tracked_url,opening_dm,opening_dm_button
 "yc","here it is: {link}","sent. check dms","https://events.ycombinator.com/startup-school-2026","hey! click below for the referral","send link"
@@ -83,79 +85,79 @@ export default function ImportCampaignsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">Import campaigns</h1>
-        <p className="text-sm text-muted mt-1">
-          Paste a CSV with one row per campaign. Each row opens in the builder
-          prefilled and editable, so you can review it and pick the reel before
-          saving. Required columns are{" "}
-          <code className="text-accent">keywords</code> and{" "}
-          <code className="text-accent">dm_message</code>. Optional:{" "}
-          <code className="text-accent">name</code>,{" "}
-          <code className="text-accent">public_reply</code>,{" "}
-          <code className="text-accent">tracked_url</code>,{" "}
-          <code className="text-accent">opening_dm</code>,{" "}
-          <code className="text-accent">opening_dm_button</code>. Keywords go in
-          one cell, separated by commas. Use{" "}
-          <code className="text-accent">{"{link}"}</code> in the message to
-          insert the tracked link.
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-6 sm:space-y-8">
+      <PageHeader
+        title="Import campaigns"
+        description={
+          <>
+            Paste a CSV with one row per campaign. Each row opens in the builder
+            prefilled and editable, so you can review it and pick the reel before
+            saving. Required columns are{" "}
+            <code className="text-accent">keywords</code> and{" "}
+            <code className="text-accent">dm_message</code>. Optional:{" "}
+            <code className="text-accent">name</code>,{" "}
+            <code className="text-accent">public_reply</code>,{" "}
+            <code className="text-accent">tracked_url</code>,{" "}
+            <code className="text-accent">opening_dm</code>,{" "}
+            <code className="text-accent">opening_dm_button</code>. Keywords go in
+            one cell, separated by commas. Use{" "}
+            <code className="text-accent">{"{link}"}</code> in the message to
+            insert the tracked link.
+          </>
+        }
+      />
 
       {error && (
-        <div className="p-4 rounded bg-error/10 border border-error/20 text-error text-sm">
-          {error}
+        <div className="flex items-start gap-2.5 rounded-xl border border-error/20 bg-error/10 px-4 py-3 text-sm text-error">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
         </div>
       )}
 
-      {accounts.length > 1 && (
+      <Card className="space-y-6">
+        {accounts.length > 1 && (
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-foreground">
+              Instagram account
+            </label>
+            <AccountSelect
+              accounts={accounts}
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              includeAll={false}
+              label="Account"
+            />
+          </div>
+        )}
+
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-foreground">
-            Instagram account
-          </label>
-          <AccountSelect
-            accounts={accounts}
-            value={selectedAccountId}
-            onChange={setSelectedAccountId}
-            includeAll={false}
-            label="Account"
+          <label className="block text-sm font-semibold text-foreground">CSV</label>
+          <Textarea
+            value={csv}
+            onChange={(e) => setCsv(e.target.value)}
+            placeholder={SAMPLE}
+            rows={10}
+            className="font-mono"
           />
+          <button
+            type="button"
+            onClick={() => setCsv(SAMPLE)}
+            className="text-xs font-semibold text-accent hover:underline"
+          >
+            Fill with a sample
+          </button>
         </div>
-      )}
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-foreground">CSV</label>
-        <textarea
-          value={csv}
-          onChange={(e) => setCsv(e.target.value)}
-          placeholder={SAMPLE}
-          rows={10}
-          className="w-full px-4 py-3 rounded bg-surface border border-border text-sm font-mono text-foreground placeholder:text-zinc-600 focus:border-accent/40 focus:outline-none resize-y"
-        />
-        <button
-          type="button"
-          onClick={() => setCsv(SAMPLE)}
-          className="text-xs text-muted hover:text-foreground"
-        >
-          Fill with a sample
-        </button>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <button
-          onClick={startImport}
-          className="px-5 py-2 rounded bg-accent text-sm font-medium text-white hover:bg-accent-hover"
-        >
-          Review and import
-        </button>
-        <button
-          onClick={() => router.push("/campaigns")}
-          className="px-5 py-2 rounded text-sm text-muted hover:text-foreground border border-border"
-        >
-          Cancel
-        </button>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={startImport} variant="primary">
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            Review and import
+          </Button>
+          <Button onClick={() => router.push("/campaigns")} variant="secondary">
+            Cancel
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
