@@ -91,6 +91,7 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `CRON_SECRET` | Random secret protecting the token-refresh cron. |
 | `ENCRYPTION_KEY` | 32-byte hex. `openssl rand -hex 32`. Encrypts Instagram tokens. Identical across web and worker. |
 | `DATABASE_URL` | PostgreSQL connection string. Public Railway URL on Vercel; internal on the worker. |
+| `DIRECT_URL` | Optional. A direct, unpooled Postgres URL used only for migrations. Set it when `DATABASE_URL` goes through a connection pooler, such as Neon's `-pooler` host. |
 | `REDIS_URL` | Redis connection string. Must support blocking commands, so an HTTP-only Redis will not work with BullMQ. |
 | `RESEND_API_KEY` | Resend key. Login is email magic links only, so without this nobody can sign in. |
 | `EMAIL_FROM` | A sender on a domain you verified in Resend. The placeholder will not deliver. |
