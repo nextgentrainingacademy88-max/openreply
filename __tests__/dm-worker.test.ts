@@ -135,6 +135,7 @@ vi.mock("bullmq", () => {
 });
 
 import { createDMWorker } from "../lib/queue/dm-worker";
+import { CAMPAIGN_DEFAULTS } from "../lib/automations/defaults";
 
 const usagePeriodStart = new Date("2026-05-01T00:00:00.000Z");
 
@@ -1045,8 +1046,11 @@ describe("DM Worker — DM keyword trigger", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      expect.any(String),
-      "I'm following ✅",
+      CAMPAIGN_DEFAULTS.followPromptMessage.replace(
+        "{username}",
+        "commenter_user"
+      ),
+      CAMPAIGN_DEFAULTS.followPromptButtonLabel,
       "followcheck:auto_789"
     );
     expect(mockSendDirectMessage).not.toHaveBeenCalled();

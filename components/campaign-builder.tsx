@@ -18,6 +18,7 @@ import AccountSelect, { type AccountOption } from "@/components/account-select";
 import PostPicker from "@/components/post-picker";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 import { readCache, writeCache } from "@/lib/client-cache";
+import { CAMPAIGN_DEFAULTS } from "@/lib/automations/defaults";
 import {
   IMPORT_QUEUE_KEY,
   IMPORT_ACCOUNT_KEY,
@@ -105,6 +106,27 @@ function Radio({
   );
 }
 
+function ResetToDefault({
+  value,
+  defaultValue,
+  onReset,
+}: {
+  value: string;
+  defaultValue: string;
+  onReset: () => void;
+}) {
+  if (value === defaultValue) return null;
+  return (
+    <button
+      type="button"
+      onClick={onReset}
+      className="text-xs font-medium text-accent hover:underline"
+    >
+      Reset to my default
+    </button>
+  );
+}
+
 function Toggle({
   on,
   onToggle,
@@ -160,25 +182,39 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [dmTriggerEnabled, setDmTriggerEnabled] = useState(false);
 
   const [publicReplyEnabled, setPublicReplyEnabled] = useState(false);
-  const [publicReplyMessages, setPublicReplyMessages] = useState<string[]>([""]);
+  const [publicReplyMessages, setPublicReplyMessages] = useState<string[]>([
+    ...CAMPAIGN_DEFAULTS.publicReplyMessages,
+  ]);
 
   const [openingDmEnabled, setOpeningDmEnabled] = useState(false);
-  const [openingDmMessage, setOpeningDmMessage] = useState("");
-  const [openingDmButtonLabel, setOpeningDmButtonLabel] = useState("");
+  const [openingDmMessage, setOpeningDmMessage] = useState<string>(
+    CAMPAIGN_DEFAULTS.openingDmMessage
+  );
+  const [openingDmButtonLabel, setOpeningDmButtonLabel] = useState<string>(
+    CAMPAIGN_DEFAULTS.openingDmButtonLabel
+  );
 
-  const [dmMessage, setDmMessage] = useState("");
+  const [dmMessage, setDmMessage] = useState<string>(CAMPAIGN_DEFAULTS.dmMessage);
   const [linkOpen, setLinkOpen] = useState(false);
   const [trackedDestinationUrl, setTrackedDestinationUrl] = useState("");
-  const [linkButtonLabel, setLinkButtonLabel] = useState("Open link");
+  const [linkButtonLabel, setLinkButtonLabel] = useState<string>(
+    CAMPAIGN_DEFAULTS.linkButtonLabel
+  );
   const [secondLinkOpen, setSecondLinkOpen] = useState(false);
   const [secondaryDestinationUrl, setSecondaryDestinationUrl] = useState("");
-  const [secondaryButtonLabel, setSecondaryButtonLabel] = useState("Open link");
+  const [secondaryButtonLabel, setSecondaryButtonLabel] = useState<string>(
+    CAMPAIGN_DEFAULTS.secondaryButtonLabel
+  );
   const [requireFollow, setRequireFollow] = useState(false);
-  const [followPromptMessage, setFollowPromptMessage] = useState("");
+  const [followPromptMessage, setFollowPromptMessage] = useState<string>(
+    CAMPAIGN_DEFAULTS.followPromptMessage
+  );
   const [followPromptButtonLabel, setFollowPromptButtonLabel] =
-    useState("i'm following");
+    useState<string>(CAMPAIGN_DEFAULTS.followPromptButtonLabel);
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
-  const [followUpMessage, setFollowUpMessage] = useState("");
+  const [followUpMessage, setFollowUpMessage] = useState<string>(
+    CAMPAIGN_DEFAULTS.followUpMessage
+  );
   const [followUpDelayMinutes, setFollowUpDelayMinutes] = useState(0);
 
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
@@ -265,28 +301,30 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             ? c.publicReplyMessages
             : c.publicReplyMessage
               ? [c.publicReplyMessage]
-              : [""]
+              : [...CAMPAIGN_DEFAULTS.publicReplyMessages]
         );
         setOpeningDmEnabled(c.openingDmEnabled);
-        setOpeningDmMessage(c.openingDmMessage ?? "");
-        setOpeningDmButtonLabel(c.openingDmButtonLabel ?? "");
+        setOpeningDmMessage(c.openingDmMessage || CAMPAIGN_DEFAULTS.openingDmMessage);
+        setOpeningDmButtonLabel(
+          c.openingDmButtonLabel || CAMPAIGN_DEFAULTS.openingDmButtonLabel
+        );
         setDmMessage(c.dmMessage);
-        setLinkButtonLabel(c.linkButtonLabel ?? "Open link");
+        setLinkButtonLabel(c.linkButtonLabel || CAMPAIGN_DEFAULTS.linkButtonLabel);
         setIsActive(c.isActive);
         const link = c.trackedLinks?.[0]?.destinationUrl ?? "";
         setTrackedDestinationUrl(link);
         setLinkOpen(Boolean(link));
         const secondLink = c.trackedLinks?.[1];
         setSecondaryDestinationUrl(secondLink?.destinationUrl ?? "");
-        setSecondaryButtonLabel(secondLink?.label ?? "Open link");
+        setSecondaryButtonLabel(secondLink?.label || CAMPAIGN_DEFAULTS.secondaryButtonLabel);
         setSecondLinkOpen(Boolean(secondLink?.destinationUrl));
         setRequireFollow(c.requireFollow ?? false);
-        setFollowPromptMessage(c.followPromptMessage ?? "");
+        setFollowPromptMessage(c.followPromptMessage || CAMPAIGN_DEFAULTS.followPromptMessage);
         setFollowPromptButtonLabel(
-          c.followPromptButtonLabel ?? "i'm following"
+          c.followPromptButtonLabel || CAMPAIGN_DEFAULTS.followPromptButtonLabel
         );
         setFollowUpEnabled(c.followUpEnabled ?? false);
-        setFollowUpMessage(c.followUpMessage ?? "");
+        setFollowUpMessage(c.followUpMessage || CAMPAIGN_DEFAULTS.followUpMessage);
         setFollowUpDelayMinutes(c.followUpDelayMinutes ?? 0);
       })
       .catch(() => setNotFound(true))
@@ -416,16 +454,21 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         ? publicReplyMessages.map((m) => m.trim()).filter(Boolean)
         : [],
       trackedDestinationUrl: trackedDestinationUrl.trim() || "",
-      linkButtonLabel: linkButtonLabel.trim() || "Open link",
+      linkButtonLabel: linkButtonLabel.trim() || CAMPAIGN_DEFAULTS.linkButtonLabel,
       secondaryDestinationUrl: secondaryDestinationUrl.trim() || "",
-      secondaryButtonLabel: secondaryButtonLabel.trim() || "Open link",
+      secondaryButtonLabel:
+        secondaryButtonLabel.trim() || CAMPAIGN_DEFAULTS.secondaryButtonLabel,
       requireFollow,
-      followPromptMessage: requireFollow ? followPromptMessage.trim() : "",
+      followPromptMessage: requireFollow
+        ? followPromptMessage.trim() || CAMPAIGN_DEFAULTS.followPromptMessage
+        : "",
       followPromptButtonLabel: requireFollow
-        ? followPromptButtonLabel.trim() || "i'm following"
+        ? followPromptButtonLabel.trim() || CAMPAIGN_DEFAULTS.followPromptButtonLabel
         : "",
       followUpEnabled,
-      followUpMessage: followUpEnabled ? followUpMessage.trim() : "",
+      followUpMessage: followUpEnabled
+        ? followUpMessage.trim() || CAMPAIGN_DEFAULTS.followUpMessage
+        : "",
       followUpDelayMinutes: followUpEnabled ? followUpDelayMinutes : 0,
       isActive: activeValue,
     };
@@ -759,7 +802,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                         prev.map((m, idx) => (idx === i ? e.target.value : m))
                       )
                     }
-                    placeholder="Sent you a DM! 📩"
+                    placeholder={CAMPAIGN_DEFAULTS.publicReplyMessages[0]}
                     maxLength={1000}
                     className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   />
@@ -812,15 +855,20 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <textarea
                   value={openingDmMessage}
                   onChange={(e) => setOpeningDmMessage(e.target.value)}
-                  placeholder="Hey there! I'm so happy you're here 😊"
+                  placeholder={CAMPAIGN_DEFAULTS.openingDmMessage}
                   rows={3}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                   maxLength={1000}
                 />
+                <ResetToDefault
+                  value={openingDmMessage}
+                  defaultValue={CAMPAIGN_DEFAULTS.openingDmMessage}
+                  onReset={() => setOpeningDmMessage(CAMPAIGN_DEFAULTS.openingDmMessage)}
+                />
                 <input
                   value={openingDmButtonLabel}
                   onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
-                  placeholder="Send me the link"
+                  placeholder={CAMPAIGN_DEFAULTS.openingDmButtonLabel}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   maxLength={64}
                 />
@@ -842,15 +890,20 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <textarea
                   value={followPromptMessage}
                   onChange={(e) => setFollowPromptMessage(e.target.value)}
-                  placeholder="quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"
+                  placeholder={CAMPAIGN_DEFAULTS.followPromptMessage}
                   rows={3}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                   maxLength={1000}
                 />
+                <ResetToDefault
+                  value={followPromptMessage}
+                  defaultValue={CAMPAIGN_DEFAULTS.followPromptMessage}
+                  onReset={() => setFollowPromptMessage(CAMPAIGN_DEFAULTS.followPromptMessage)}
+                />
                 <input
                   value={followPromptButtonLabel}
                   onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
-                  placeholder="i'm following"
+                  placeholder={CAMPAIGN_DEFAULTS.followPromptButtonLabel}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   maxLength={20}
                 />
@@ -875,6 +928,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
               maxLength={1000}
             />
+                <ResetToDefault
+                  value={dmMessage}
+                  defaultValue={CAMPAIGN_DEFAULTS.dmMessage}
+                  onReset={() => setDmMessage(CAMPAIGN_DEFAULTS.dmMessage)}
+                />
             {linkOpen ? (
               <div className="space-y-2">
                 <input
@@ -945,10 +1003,15 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <textarea
                   value={followUpMessage}
                   onChange={(e) => setFollowUpMessage(e.target.value)}
-                  placeholder="Btw just wanted to say thanks for following me, I appreciate the support 🙌"
+                  placeholder={CAMPAIGN_DEFAULTS.followUpMessage}
                   rows={3}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                   maxLength={1000}
+                />
+                <ResetToDefault
+                  value={followUpMessage}
+                  defaultValue={CAMPAIGN_DEFAULTS.followUpMessage}
+                  onReset={() => setFollowUpMessage(CAMPAIGN_DEFAULTS.followUpMessage)}
                 />
                 <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
                   <span className="text-xs text-muted">Send it</span>
@@ -1001,15 +1064,15 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             openingDmButtonLabel={openingDmButtonLabel}
             revealMessage={dmMessage}
             hasLink={Boolean(trackedDestinationUrl.trim())}
-            linkButtonLabel={linkButtonLabel || "Open link"}
+            linkButtonLabel={linkButtonLabel || CAMPAIGN_DEFAULTS.linkButtonLabel}
             linkUrl={trackedDestinationUrl.trim() || undefined}
             hasSecondLink={
               secondLinkOpen && Boolean(secondaryDestinationUrl.trim())
             }
-            secondLinkButtonLabel={secondaryButtonLabel || "Open link"}
+            secondLinkButtonLabel={secondaryButtonLabel || CAMPAIGN_DEFAULTS.secondaryButtonLabel}
             requireFollow={requireFollow}
             followPromptMessage={followPromptMessage}
-            followPromptButtonLabel={followPromptButtonLabel || "i'm following"}
+            followPromptButtonLabel={followPromptButtonLabel || CAMPAIGN_DEFAULTS.followPromptButtonLabel}
             followUpEnabled={followUpEnabled}
             followUpMessage={followUpMessage}
             followUpDelayMinutes={followUpDelayMinutes}

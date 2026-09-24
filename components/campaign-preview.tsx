@@ -1,5 +1,7 @@
 "use client";
 
+import { CAMPAIGN_DEFAULTS } from "@/lib/automations/defaults";
+
 /* eslint-disable @next/next/no-img-element */
 
 /**
@@ -279,7 +281,7 @@ function CommentsScreen({
                 <span className="font-semibold">{username}</span>{" "}
                 <span className="text-zinc-500">Now</span>
               </p>
-              <p className="text-sm">{publicReplyMessage || "Sent you a DM! 📩"}</p>
+              <p className="text-sm">{publicReplyMessage || CAMPAIGN_DEFAULTS.publicReplyMessages[0]}</p>
               <p className="mt-0.5 text-xs text-zinc-500">Reply</p>
             </div>
             <span className="mt-1">{Ico.heart("h-3.5 w-3.5 text-zinc-500")}</span>
@@ -390,16 +392,16 @@ function DmScreen({
               <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">
                   {followPromptMessage ||
-                    "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
+                    CAMPAIGN_DEFAULTS.followPromptMessage}
                 </p>
                 <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                  {followPromptButtonLabel || "i'm following"}
+                  {followPromptButtonLabel || CAMPAIGN_DEFAULTS.followPromptButtonLabel}
                 </div>
               </div>
             </div>
             <div className="flex justify-end">
               <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
-                {followPromptButtonLabel || "i'm following"}
+                {followPromptButtonLabel || CAMPAIGN_DEFAULTS.followPromptButtonLabel}
               </div>
             </div>
           </>
@@ -427,11 +429,11 @@ function DmScreen({
                 {showCard && (
                   <>
                     <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                      {linkButtonLabel || "Open link"}
+                      {linkButtonLabel || CAMPAIGN_DEFAULTS.linkButtonLabel}
                     </div>
                     {hasSecondLink && (
                       <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                        {secondLinkButtonLabel || "Open link"}
+                        {secondLinkButtonLabel || CAMPAIGN_DEFAULTS.secondaryButtonLabel}
                       </div>
                     )}
                   </>
@@ -453,7 +455,7 @@ function DmScreen({
                 <p className="whitespace-pre-wrap text-sm">
                   {followUpMessage.trim()
                     ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER)
-                    : "Btw just wanted to say thanks for following me, I appreciate the support 🙌"}
+                    : CAMPAIGN_DEFAULTS.followUpMessage}
                 </p>
               </div>
             </div>

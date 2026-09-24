@@ -8,6 +8,7 @@
  * live in the top bar.
  */
 
+import { CAMPAIGN_DEFAULTS } from "@/lib/automations/defaults";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -234,32 +235,33 @@ export default function CampaignDetailPage() {
         </Summary>
 
         {campaign.openingDmEnabled && (
-          <Summary title="They will get an opening DM">
-            <FieldBox>{campaign.openingDmMessage || "Opening message"}</FieldBox>
-            <FieldBox>{campaign.openingDmButtonLabel || "Button"}</FieldBox>
+          <Summary title="They will get an opening DM" editHref={`/campaigns/${campaign.id}/edit`}>
+            <FieldBox>{campaign.openingDmMessage || CAMPAIGN_DEFAULTS.openingDmMessage}</FieldBox>
+            <FieldBox>{campaign.openingDmButtonLabel || CAMPAIGN_DEFAULTS.openingDmButtonLabel}</FieldBox>
           </Summary>
         )}
 
         {campaign.requireFollow && (
-          <Summary title="They must follow first">
+          <Summary title="They must follow first" editHref={`/campaigns/${campaign.id}/edit`}>
             <FieldBox>
-              {campaign.followPromptMessage ||
-                "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
+              {campaign.followPromptMessage || CAMPAIGN_DEFAULTS.followPromptMessage}
             </FieldBox>
             <FieldBox>
-              {campaign.followPromptButtonLabel || "i'm following"}
+              {campaign.followPromptButtonLabel ||
+                CAMPAIGN_DEFAULTS.followPromptButtonLabel}
             </FieldBox>
           </Summary>
         )}
 
-        <Summary title="And then, they will get a DM">
+        <Summary title="And then, they will get a DM" editHref={`/campaigns/${campaign.id}/edit`}>
           <FieldBox>{campaign.dmMessage}</FieldBox>
           {hasLink && (
-            <FieldBox>{campaign.linkButtonLabel || "Open link"}</FieldBox>
+            <FieldBox>{campaign.linkButtonLabel || CAMPAIGN_DEFAULTS.linkButtonLabel}</FieldBox>
           )}
           {hasSecondLink && (
             <FieldBox>
-              {campaign.trackedLinks?.[1]?.label || "Open link"}
+              {campaign.trackedLinks?.[1]?.label ||
+                CAMPAIGN_DEFAULTS.secondaryButtonLabel}
             </FieldBox>
           )}
         </Summary>
@@ -363,19 +365,19 @@ export default function CampaignDetailPage() {
             openingDmButtonLabel={campaign.openingDmButtonLabel ?? ""}
             revealMessage={campaign.dmMessage}
             hasLink={hasLink}
-            linkButtonLabel={campaign.linkButtonLabel ?? "Open link"}
+            linkButtonLabel={campaign.linkButtonLabel || CAMPAIGN_DEFAULTS.linkButtonLabel}
             linkUrl={
               campaign.trackedLinks?.[0]?.trackedUrl ??
               campaign.trackedLinks?.[0]?.destinationUrl
             }
             hasSecondLink={hasSecondLink}
             secondLinkButtonLabel={
-              campaign.trackedLinks?.[1]?.label ?? "Open link"
+              campaign.trackedLinks?.[1]?.label || CAMPAIGN_DEFAULTS.secondaryButtonLabel
             }
             requireFollow={campaign.requireFollow}
             followPromptMessage={campaign.followPromptMessage ?? ""}
             followPromptButtonLabel={
-              campaign.followPromptButtonLabel ?? "i'm following"
+              campaign.followPromptButtonLabel || CAMPAIGN_DEFAULTS.followPromptButtonLabel
             }
             followUpEnabled={campaign.followUpEnabled ?? false}
             followUpMessage={campaign.followUpMessage ?? ""}
@@ -388,10 +390,28 @@ export default function CampaignDetailPage() {
   );
 }
 
-function Summary({ title, children }: { title: string; children: React.ReactNode }) {
+function Summary({
+  title,
+  editHref,
+  children,
+}: {
+  title: string;
+  editHref?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {editHref && (
+          <Link
+            href={editHref}
+            className="text-xs font-medium text-accent hover:underline"
+          >
+            Edit
+          </Link>
+        )}
+      </div>
       {children}
     </div>
   );
