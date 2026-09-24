@@ -111,6 +111,13 @@ Optional, for tuning the polling reconciler (defaults are fine to start):
 | `COMMENT_POLL_MAX_PER_SWEEP` | `30` | Max new comments each campaign acts on per sweep. Keep it conservative; higher gets closer to Instagram's rate limits. |
 | `COMMENT_POLL_LOOKBACK_HOURS` | `72` | How far back a sweep considers comments. |
 
+Optional, for the agent API (see [Managing campaigns from an agent](#managing-campaigns-from-an-agent)):
+
+| Variable | What it is |
+| --- | --- |
+| `AGENT_API_KEY` | Random secret, at least 32 characters. `openssl rand -hex 32`. Unset or shorter keeps the agent API off. |
+| `AGENT_WORKSPACE_ID` | The workspace the agent acts on. Leave unset when the install has one workspace. |
+
 ## The Meta app
 
 This is the slow part. The code works out of the box; getting Meta to send you comment events is where people lose an afternoon. Every step here exists because skipping it breaks something later. Have your Vercel domain from Step 3 ready, you will paste it in a few times.
@@ -319,6 +326,23 @@ Start by reading the docs, then ask me question 1.
 ```
 
 By the end, `/api/health` returns `status: ok` with `worker.healthy: true`, and a comment with your keyword from a second account produces a `SENT` row in the DM logs. If you get there, you are done.
+
+## Managing campaigns from an agent
+
+An operator agent, such as a chat assistant with HTTP access, can manage campaigns instead of you clicking through the dashboard. Set `AGENT_API_KEY` on the web app, give the agent the same key, and it calls these routes with `Authorization: Bearer <AGENT_API_KEY>`:
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/agent/accounts` | Connected Instagram accounts. |
+| `GET /api/agent/posts?limit=10` | Recent posts and reels, with likes and comments, to choose a `postId`. |
+| `GET /api/agent/campaigns` | Every campaign with its numbers. `?id=` for one. |
+| `POST /api/agent/campaigns` | Create a campaign. Same body as the dashboard (`name`, `postId` or `matchAnyPost` or `pendingNextReel`, `keywords`, `dmMessage`, optional `trackedDestinationUrl`, `publicReplyEnabled` and `publicReplyMessages`, `requireFollow`). |
+| `PATCH /api/agent/campaigns?id=` | Edit a campaign. `{"isActive": true}` puts it live, `{"isActive": false}` pauses it. |
+| `GET /api/agent/stats` | Totals, per-campaign numbers and the latest follower count. |
+
+A campaign created by the agent is **always saved paused**, whatever it asks for. Someone has to approve it, and then the agent (or you, in the dashboard) switches it on. The agent cannot delete campaigns.
+
+Campaigns with **Require follow** also count **new followers**: people who were not following when the campaign first checked and followed afterwards. It shows on the campaign's insights and in `/api/agent/stats`.
 
 ## Letting other people use your instance
 

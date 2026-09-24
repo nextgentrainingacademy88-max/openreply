@@ -211,6 +211,7 @@ model Automation {
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
+  followGains      CampaignFollow[]
 
   @@index([workspaceId])
   @@index([instagramAccountId])
@@ -285,6 +286,24 @@ model TrackedLink {
 
   @@index([workspaceId])
   @@index([automationId])
+}
+
+// Follow-gate attribution. A row is created the first time a campaign's follow
+// check sees someone NOT following; followedAt is set when a later check sees
+// them following. Rows with followedAt are the followers the campaign gained.
+// People who already followed at their first check never get a row.
+model CampaignFollow {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  automationId    String
+  instagramUserId String
+  notFollowingAt  DateTime  @default(now())
+  followedAt      DateTime?
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@unique([automationId, instagramUserId])
+  @@index([workspaceId])
 }
 
 model LinkClick {

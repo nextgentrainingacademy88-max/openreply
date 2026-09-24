@@ -33,6 +33,7 @@ import {
   reserveWorkspaceDMSend,
 } from "@/lib/billing/usage";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
+import { recordFollowCheck } from "@/lib/followers/attribution";
 import {
   buildTrackedUrl,
   renderMessageWithTracking,
@@ -538,6 +539,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     if (automation.requireFollow && !useOpeningDm) {
       const alreadyFollows = await getUserFollowStatus(accessToken, commenterId);
       sendFollowPrompt = alreadyFollows !== true;
+      await recordFollowCheck({
+        workspaceId: automation.workspaceId,
+        automationId: automation.id,
+        instagramUserId: commenterId,
+        follows: alreadyFollows,
+      });
     }
 
     try {
@@ -745,6 +752,12 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   // real follower is never trapped.
   if ((isFollowCheck || fallback) && automation.requireFollow) {
     const follows = await getUserFollowStatus(accessToken, userId);
+    await recordFollowCheck({
+      workspaceId: automation.workspaceId,
+      automationId: automation.id,
+      instagramUserId: userId,
+      follows,
+    });
     if (follows === false) {
       if (fallback) return;
       const promptText = renderMessageWithoutLink({
@@ -1060,6 +1073,12 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     if (automation.requireFollow) {
       const follows = await getUserFollowStatus(accessToken, senderId);
       sendFollowPrompt = follows !== true;
+      await recordFollowCheck({
+        workspaceId: automation.workspaceId,
+        automationId: automation.id,
+        instagramUserId: senderId,
+        follows,
+      });
     }
 
     const usage = await reserveWorkspaceDMSend(automation.workspaceId);

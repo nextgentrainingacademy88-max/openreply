@@ -15,6 +15,7 @@ const {
   mockQueueAdd,
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
+  mockRecordFollowCheck,
 } = vi.hoisted(() => ({
   mockPrisma: {
     automation: {
@@ -48,6 +49,7 @@ const {
   mockQueueAdd: vi.fn(),
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
+  mockRecordFollowCheck: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -99,6 +101,10 @@ vi.mock("@/lib/utils/rate-limiter", () => ({
 vi.mock("@/lib/billing/usage", () => ({
   reserveWorkspaceDMSend: mockReserveWorkspaceDMSend,
   releaseWorkspaceDMReservation: mockReleaseWorkspaceDMReservation,
+}));
+
+vi.mock("@/lib/followers/attribution", () => ({
+  recordFollowCheck: mockRecordFollowCheck,
 }));
 
 vi.mock("@/lib/ops/worker-health", () => ({
@@ -581,6 +587,13 @@ describe("DM Worker — Full Pipeline", () => {
     );
     expect(mockSendPrivateReplyWithLinkButton).not.toHaveBeenCalled();
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
+    // The non-follower is recorded so a later follow credits this campaign.
+    expect(mockRecordFollowCheck).toHaveBeenCalledWith({
+      workspaceId: "workspace_123",
+      automationId: "auto_789",
+      instagramUserId: "commenter_999",
+      follows: false,
+    });
   });
 
   it("should skip the prompt and send the link when the commenter already follows", async () => {
@@ -761,6 +774,13 @@ describe("DM Worker — Full Pipeline", () => {
       "commenter_999",
       "Hey commenter_user! Here is the link: https://example.com"
     );
+    // The follow is recorded, closing any open attribution for this campaign.
+    expect(mockRecordFollowCheck).toHaveBeenCalledWith({
+      workspaceId: "workspace_123",
+      automationId: "auto_789",
+      instagramUserId: "commenter_999",
+      follows: true,
+    });
   });
 
   it("should not log a failure when a read fallback hits a closed messaging window", async () => {
