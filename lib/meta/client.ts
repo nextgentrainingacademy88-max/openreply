@@ -1,4 +1,8 @@
-import { getMetaGraphApiVersion, requireEnv } from "@/lib/env";
+import {
+  getMetaEngagementApiVersion,
+  getMetaGraphApiVersion,
+  requireEnv,
+} from "@/lib/env";
 
 function instagramGraphBase() {
   return `https://graph.instagram.com/${getMetaGraphApiVersion()}`;
@@ -417,6 +421,35 @@ export async function sendCommentReply(
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ message }),
+    }
+  );
+
+  return handleResponse(response);
+}
+
+/**
+ * Like a comment (or reply) as the connected Instagram account.
+ *
+ * Unlike every other call here this goes to graph.facebook.com: Meta only
+ * grants instagram_manage_engagement to Facebook-login tokens, so `accessToken`
+ * is the engagement token, not the account's Instagram-login token. Liking an
+ * already-liked comment is a no-op on Meta's side. Comments from private
+ * accounts and Stories cannot be liked.
+ */
+export async function likeComment(
+  accessToken: string,
+  instagramAccountId: string,
+  commentId: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(
+    `https://graph.facebook.com/${getMetaEngagementApiVersion()}/${instagramAccountId}/likes`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ comment_id: commentId }),
     }
   );
 

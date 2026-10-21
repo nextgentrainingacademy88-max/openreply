@@ -199,6 +199,10 @@ model Automation {
   publicReplyEnabled Boolean @default(false)
   publicReplyMessage String?
   publicReplyMessages String[] @default([])
+  // Like the matching comment from the account. Needs a Facebook-login token
+  // with instagram_manage_engagement (META_ENGAGEMENT_ACCESS_TOKEN): Meta does
+  // not offer comment likes on the Instagram-login token the rest of the app uses.
+  likeComment    Boolean @default(false)
   isActive       Boolean @default(true)
   wholeWordMatch Boolean @default(true)
   reportShareSlug    String? @unique
@@ -240,6 +244,11 @@ model DmLog {
   // retries; a DM failure never blocks or re-posts the public reply.
   publicReplySentAt DateTime?
   publicReplyError  String?
+
+  // Same idea for the comment like: commentLikedAt makes it idempotent and a
+  // failed like never blocks the DM or the public reply.
+  commentLikedAt   DateTime?
+  commentLikeError String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

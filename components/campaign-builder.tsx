@@ -65,6 +65,7 @@ interface LoadedCampaign {
   publicReplyEnabled: boolean;
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
+  likeComment?: boolean;
   isActive: boolean;
   instagramAccountId: string;
   trackedLinks?: { destinationUrl: string; label?: string | null }[];
@@ -216,6 +217,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [matchMode, setMatchMode] = useState<MatchMode>("specific");
   const [keywordText, setKeywordText] = useState("");
   const [dmTriggerEnabled, setDmTriggerEnabled] = useState(false);
+  const [likeComment, setLikeComment] = useState(false);
 
   const [publicReplyEnabled, setPublicReplyEnabled] = useState(false);
   const [publicReplyMessages, setPublicReplyMessages] = useState<string[]>([
@@ -331,6 +333,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setMatchMode(c.matchAnyWord ? "any" : "specific");
         setKeywordText(c.keywords.join(", "));
         setDmTriggerEnabled(c.dmTriggerEnabled ?? false);
+        setLikeComment(c.likeComment ?? false);
         setPublicReplyEnabled(c.publicReplyEnabled);
         setPublicReplyMessages(
           c.publicReplyMessages?.length
@@ -481,6 +484,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       matchAnyWord: matchMode === "any",
       keywords: matchMode === "any" ? [] : keywords,
       dmTriggerEnabled,
+      likeComment,
       dmMessage,
       openingDmEnabled,
       openingDmMessage: openingDmEnabled ? openingDmMessage : null,
@@ -821,6 +825,21 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   {matchMode === "any"
                     ? "Every DM to this account gets the reply below — use with care."
                     : "A DM containing any of these words gets the same reply, no comment needed."}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2.5">
+                <span className="text-sm text-foreground">like their comment</span>
+                <Toggle
+                  checked={likeComment}
+                  onChange={setLikeComment}
+                  aria-label="Like their comment"
+                />
+              </div>
+              {likeComment && (
+                <p className="text-xs text-muted">
+                  The account likes each matching comment. Needs the engagement
+                  token on the server; comments from private accounts can&apos;t be liked.
                 </p>
               )}
             </FlowStep>

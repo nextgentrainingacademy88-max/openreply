@@ -101,6 +101,8 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `INSTAGRAM_APP_SECRET` | From the Meta app. |
 | `FACEBOOK_APP_SECRET` | From the Meta app. |
 | `WEBHOOK_VERIFY_TOKEN` | Any random string. You paste the same value into Meta's webhook config. |
+| `META_ENGAGEMENT_ACCESS_TOKEN` | Optional, worker only. Needed for campaigns with "like their comment". A Facebook-login token (a system user token works) with `instagram_basic` and `instagram_manage_engagement` for your Instagram accounts. Meta does not offer comment likes on the Instagram-login token the app connects with. Without it, likes are skipped and logged; DMs still send. |
+| `META_ENGAGEMENT_API_VERSION` | Optional. Graph API version for comment likes, default `v26.0`. |
 
 `ENCRYPTION_KEY` must be exactly 64 hex characters or the app throws on boot.
 

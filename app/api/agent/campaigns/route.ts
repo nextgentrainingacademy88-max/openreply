@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
       matchAnyWord: campaign.matchAnyWord,
       dmMessage: campaign.dmMessage,
       publicReplyMessages: campaign.publicReplyMessages,
+      likeComment: campaign.likeComment,
       requireFollow: campaign.requireFollow,
       links: campaign.trackedLinks.map((link) => link.destinationUrl),
       reportUrl: campaign.reportUrl,

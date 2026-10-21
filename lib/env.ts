@@ -50,6 +50,19 @@ export function getMetaGraphApiVersion(): string {
   return process.env.META_GRAPH_API_VERSION ?? "v25.0";
 }
 
+// Comment likes (Meta, April 2026) live on the Facebook-login Graph API only,
+// documented from v26.0, so they get their own version and token.
+export function getMetaEngagementApiVersion(): string {
+  return process.env.META_ENGAGEMENT_API_VERSION ?? "v26.0";
+}
+
+// A Facebook-login (e.g. system user) token with instagram_basic +
+// instagram_manage_engagement for the connected accounts. Optional: without it
+// campaigns that ask to like comments skip the like and still send the DM.
+export function getMetaEngagementToken(): string | null {
+  return process.env.META_ENGAGEMENT_ACCESS_TOKEN || null;
+}
+
 export const serverEnvSchema = z.object({
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(16),

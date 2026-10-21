@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { getUserMedia, type InstagramMedia } from "@/lib/meta/client";
-import { decryptToken } from "@/lib/meta/oauth";
+import { bindNextReelsForAccount } from "@/lib/automations/next-reel";
 
 /**
  * Binds "next reel" campaigns to a real post.
@@ -9,13 +8,9 @@ import { decryptToken } from "@/lib/meta/oauth";
  * Instagram sends no webhook when a new media is published, so we poll: for
  * every campaign awaiting the creator's next reel, find the earliest reel that
  * was posted after the campaign was created and attach the campaign to it.
- * Runs on a schedule (see vercel.json) — the campaign goes live within one
- * cron interval of the reel being posted.
+ * Runs on a schedule (see vercel.json) as a safety net; the worker also binds
+ * on the first comment of a fresh reel (lib/automations/next-reel.ts).
  */
-
-function isReel(media: InstagramMedia): boolean {
-  return media.media_product_type === "REELS";
-}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -53,38 +48,11 @@ export async function GET(request: NextRequest) {
     checked += automations.length;
     if (!account?.accessToken) continue;
 
-    let reels: InstagramMedia[];
     try {
-      const token = decryptToken(account.accessToken);
-      const media = await getUserMedia(token, 25);
-      reels = media
-        .filter(isReel)
-        .sort(
-          (a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
+      bound += await bindNextReelsForAccount(account.accessToken, automations);
     } catch (err) {
       failures.push(account.id);
       console.error("[attach-next-reel] media fetch failed", account.id, err);
-      continue;
-    }
-
-    for (const automation of automations) {
-      // The "next" reel = the earliest one posted after the campaign was created.
-      const nextReel = reels.find(
-        (reel) => new Date(reel.timestamp) > automation.createdAt
-      );
-      if (!nextReel) continue;
-
-      await prisma.automation.update({
-        where: { id: automation.id },
-        data: {
-          postId: nextReel.id,
-          postUrl: nextReel.permalink ?? null,
-          pendingNextReel: false,
-        },
-      });
-      bound += 1;
     }
   }
 

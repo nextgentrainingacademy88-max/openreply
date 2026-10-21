@@ -16,6 +16,8 @@ const {
   mockReserveWorkspaceDMSend,
   mockReleaseWorkspaceDMReservation,
   mockRecordFollowCheck,
+  mockLikeComment,
+  mockBindPendingNextReels,
 } = vi.hoisted(() => ({
   mockPrisma: {
     automation: {
@@ -50,6 +52,8 @@ const {
   mockReserveWorkspaceDMSend: vi.fn(),
   mockReleaseWorkspaceDMReservation: vi.fn(),
   mockRecordFollowCheck: vi.fn(),
+  mockLikeComment: vi.fn(),
+  mockBindPendingNextReels: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -65,6 +69,7 @@ vi.mock("@/lib/meta/client", () => ({
   sendDirectMessage: mockSendDirectMessage,
   sendDirectMessageWithLinkButton: mockSendDirectMessageWithLinkButton,
   sendCommentReply: vi.fn(),
+  likeComment: mockLikeComment,
   MetaApiError: class MetaApiError extends Error {
     code: number;
     constructor(
@@ -109,6 +114,10 @@ vi.mock("@/lib/followers/attribution", () => ({
 
 vi.mock("@/lib/ops/worker-health", () => ({
   recordWorkerAlert: vi.fn(),
+}));
+
+vi.mock("@/lib/automations/next-reel", () => ({
+  bindPendingNextReelsOnComment: mockBindPendingNextReels,
 }));
 
 vi.mock("@/lib/queue/client", () => ({
@@ -280,6 +289,105 @@ beforeEach(() => {
     message_id: "msg_006",
   });
   mockGetUserFollowStatus.mockResolvedValue(true);
+  mockLikeComment.mockResolvedValue({ success: true });
+  mockBindPendingNextReels.mockResolvedValue(0);
+  delete process.env.META_ENGAGEMENT_ACCESS_TOKEN;
+});
+
+describe("DM Worker — comment like", () => {
+  const likeLogKey = {
+    automationId_commentId: { automationId: "auto_789", commentId: "comment_555" },
+  };
+
+  it("should like the matching comment with the engagement token and still DM", async () => {
+    process.env.META_ENGAGEMENT_ACCESS_TOKEN = "engagement_token";
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, likeComment: true },
+    ]);
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockLikeComment).toHaveBeenCalledWith(
+      "engagement_token",
+      "ig_456",
+      "comment_555"
+    );
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
+      where: likeLogKey,
+      data: { commentLikedAt: expect.any(Date), commentLikeError: null },
+    });
+    expect(mockSendPrivateReply).toHaveBeenCalled();
+  });
+
+  it("should not like when the campaign does not ask for it", async () => {
+    process.env.META_ENGAGEMENT_ACCESS_TOKEN = "engagement_token";
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockLikeComment).not.toHaveBeenCalled();
+  });
+
+  it("should record a failed like and still send the DM", async () => {
+    process.env.META_ENGAGEMENT_ACCESS_TOKEN = "engagement_token";
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, likeComment: true },
+    ]);
+    mockLikeComment.mockRejectedValue(new Error("private account"));
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
+      where: likeLogKey,
+      data: { commentLikeError: "private account" },
+    });
+    expect(mockSendPrivateReply).toHaveBeenCalled();
+  });
+
+  it("should record a missing engagement token without calling Meta", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, likeComment: true },
+    ]);
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockLikeComment).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
+      where: likeLogKey,
+      data: { commentLikeError: "META_ENGAGEMENT_ACCESS_TOKEN is not set" },
+    });
+    expect(mockSendPrivateReply).toHaveBeenCalled();
+  });
+
+  it("should not like a comment twice when the job comes back", async () => {
+    process.env.META_ENGAGEMENT_ACCESS_TOKEN = "engagement_token";
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, likeComment: true },
+    ]);
+    mockPrisma.dmLog.findUnique.mockResolvedValue({
+      status: "FAILED",
+      commentLikedAt: new Date(),
+    });
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockLikeComment).not.toHaveBeenCalled();
+  });
+
+  it("should try to bind next-reel campaigns before matching the comment", async () => {
+    const processor = getProcessor();
+
+    await processor(createMockJob());
+
+    expect(mockBindPendingNextReels).toHaveBeenCalledWith("ig_456");
+    expect(mockBindPendingNextReels.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrisma.automation.findMany.mock.invocationCallOrder[0]
+    );
+  });
 });
 
 describe("DM Worker — Full Pipeline", () => {

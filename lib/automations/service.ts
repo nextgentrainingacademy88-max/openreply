@@ -58,6 +58,7 @@ export const createAutomationSchema = z
       .max(10)
       .optional()
       .default([]),
+    likeComment: z.boolean().optional().default(false),
     // Empty string means "no tracked link"; a URL sets one.
     trackedDestinationUrl: z
       .union([z.string().url(), z.literal("")])
@@ -115,6 +116,7 @@ export const updateAutomationSchema = z.object({
   publicReplyEnabled: z.boolean().optional(),
   publicReplyMessage: z.string().max(1000).optional().nullable(),
   publicReplyMessages: z.array(z.string().max(1000)).max(10).optional(),
+  likeComment: z.boolean().optional(),
   isActive: z.boolean().optional(),
   wholeWordMatch: z.boolean().optional(),
   reportShareEnabled: z.boolean().optional(),
@@ -416,6 +418,7 @@ export async function createCampaign(
       publicReplyMessage: parsed.data.publicReplyEnabled
         ? publicReplyList[0] ?? parsed.data.publicReplyMessage ?? null
         : null,
+      likeComment: parsed.data.likeComment,
       isActive: options.forceDraft ? false : parsed.data.isActive,
       wholeWordMatch: parsed.data.wholeWordMatch,
       workspaceId,

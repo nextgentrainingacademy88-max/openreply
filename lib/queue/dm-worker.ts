@@ -17,6 +17,7 @@ import {
   RateLimitError,
   TokenExpiredError,
   getUserFollowStatus,
+  likeComment,
   sendCommentReply,
   sendDirectMessage,
   sendDirectMessageWithButton,
@@ -35,6 +36,8 @@ import {
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
 import { recordFollowCheck } from "@/lib/followers/attribution";
 import { CAMPAIGN_DEFAULTS } from "@/lib/automations/defaults";
+import { bindPendingNextReelsOnComment } from "@/lib/automations/next-reel";
+import { getMetaEngagementToken } from "@/lib/env";
 import {
   buildTrackedUrl,
   renderMessageWithTracking,
@@ -193,6 +196,37 @@ async function sendRevealDirectMessage(
   }
 }
 
+async function likeMatchedComment(
+  automationId: string,
+  instagramAccountId: string,
+  commentId: string
+): Promise<void> {
+  const where = { automationId_commentId: { automationId, commentId } };
+  const engagementToken = getMetaEngagementToken();
+  if (!engagementToken) {
+    await prisma.dmLog
+      .update({
+        where,
+        data: { commentLikeError: "META_ENGAGEMENT_ACCESS_TOKEN is not set" },
+      })
+      .catch(() => {});
+    return;
+  }
+
+  try {
+    await likeComment(engagementToken, instagramAccountId, commentId);
+    await prisma.dmLog.update({
+      where,
+      data: { commentLikedAt: new Date(), commentLikeError: null },
+    });
+  } catch (error) {
+    console.error("[DM Worker] Comment like failed:", formatError(error));
+    await prisma.dmLog
+      .update({ where, data: { commentLikeError: formatError(error) } })
+      .catch(() => {});
+  }
+}
+
 async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   const {
     instagramAccountId,
@@ -203,6 +237,10 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     mediaId,
   } = job.data;
   const requeueAttempt = job.data.requeueAttempt ?? 0;
+
+  // A comment may be the first sign of a freshly posted reel: bind any campaign
+  // waiting for the account's next reel before matching, so it can fire now.
+  await bindPendingNextReelsOnComment(instagramAccountId);
 
   const automations = await prisma.automation.findMany({
     where: {
@@ -396,6 +434,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           })
           .catch(() => {});
       }
+    }
+
+    // Comment like leg — same contract as the public reply: independent of the
+    // DM, idempotent via commentLikedAt, and a failure is recorded, not thrown.
+    if (automation.likeComment && !existingLog?.commentLikedAt) {
+      await likeMatchedComment(automation.id, instagramAccountId, commentId);
     }
 
     // DM already sent on an earlier pass; the public reply retry above was all
