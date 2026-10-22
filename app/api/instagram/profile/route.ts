@@ -27,6 +27,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // A Facebook Page has no Instagram profile; its stored name is enough for
+  // the campaign preview.
+  if (account.platform === "FACEBOOK") {
+    return NextResponse.json({
+      success: true,
+      data: { username: account.username, name: account.name ?? null, profilePictureUrl: null },
+    });
+  }
+
   try {
     const token = decryptToken(account.accessToken);
     const info = await getUserInfo(token);

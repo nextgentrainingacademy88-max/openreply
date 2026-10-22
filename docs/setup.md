@@ -101,7 +101,7 @@ Copy `.env.example` to `.env` for local work, or set these in Vercel and Railway
 | `INSTAGRAM_APP_SECRET` | From the Meta app. |
 | `FACEBOOK_APP_SECRET` | From the Meta app. |
 | `WEBHOOK_VERIFY_TOKEN` | Any random string. You paste the same value into Meta's webhook config. |
-| `META_ENGAGEMENT_ACCESS_TOKEN` | Optional, worker only. Needed for campaigns with "like their comment". A Facebook-login token (a system user token works) with `instagram_basic` and `instagram_manage_engagement` for your Instagram accounts. Meta does not offer comment likes on the Instagram-login token the app connects with. Without it, likes are skipped and logged; DMs still send. |
+| `META_ENGAGEMENT_ACCESS_TOKEN` | Optional. A Facebook-login token (a system user token works). On the worker it likes Instagram comments, which needs `instagram_basic` and `instagram_manage_engagement`; Meta does not offer comment likes on the Instagram-login token the app connects with, so without it likes are skipped and logged and DMs still send. On the web app it connects Facebook Pages (see "Facebook Pages" below), which needs the Page assigned and `pages_show_list`, `pages_read_engagement`, `pages_manage_engagement`, `pages_manage_metadata`, `pages_messaging`. One token can carry all of these. |
 | `META_ENGAGEMENT_API_VERSION` | Optional. Graph API version for comment likes, default `v26.0`. |
 
 `ENCRYPTION_KEY` must be exactly 64 hex characters or the app throws on boot.
@@ -241,6 +241,24 @@ Meta's `/me` returns two IDs. The `id` field is app-scoped. The `user_id` field 
 Hit `/api/health` any time. It reports the database, Redis, queue, and worker heartbeat. If `worker.healthy` is false, the worker is not running or cannot reach Redis, and no DM will send even though webhooks are being received.
 
 If you want to inspect where a comment stopped, the Postgres tables tell you: `WebhookEvent` for delivery, `DmLog` for send status and errors, `OperationalEvent` for worker crashes and the polling reconciler's sweep logs.
+
+## Facebook Pages (comments on posts and ads)
+
+A connected Facebook Page runs the same campaigns: a keyword comment on a Page post, or on an ad, gets a Messenger private reply (one per comment, within 7 days), an optional public reply and an optional like. A common use is a DM with a single button that opens WhatsApp (`https://wa.me/<number>?text=...`), for audiences who prefer WhatsApp to Messenger.
+
+Pages connect through `META_ENGAGEMENT_ACCESS_TOKEN`, not OAuth:
+
+1. In Meta Business settings, open System users, assign the Page to the system user with full control, and generate a token for this app with the Page permissions listed in the environment table. Set it as `META_ENGAGEMENT_ACCESS_TOKEN` on the web app and the worker.
+2. In the app, Settings, Facebook Pages, click Connect next to the Page. OpenReply stores the Page token (it never expires), subscribes the Page to the `feed`, `messages` and `messaging_postbacks` webhooks, and points the app's Page webhook at `/api/webhook`. If that last step reports a warning, set it by hand in the Meta dashboard: Webhooks, Page, same callback URL and verify token, fields `feed`, `messages`, `messaging_postbacks`.
+3. Create a campaign on the Page. For ads choose "any post": ad posts are not in the Page's post list, but Meta still sends webhooks for comments on them.
+
+What differs from Instagram:
+
+- No follow gate. Facebook has no API to check whether someone follows or likes a Page, so the toggle is hidden and the link goes straight out.
+- No "next post". Use a specific post or any post.
+- No polling sweep. Page comments arrive by webhook only.
+- Likes use the Page token, so they need no extra setup.
+- Messenger may require Advanced Access for `pages_messaging` (App Review) before a Page can message people who have no role on the app. If DMs fail for strangers with a permission error while they work for you, that is the cause.
 
 ## Local development
 

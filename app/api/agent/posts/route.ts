@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAgentContext } from "@/lib/agent-auth";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
-import { getUserMedia } from "@/lib/meta/client";
+import { getPagePosts, getUserMedia } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 
 export const runtime = "nodejs";
@@ -39,7 +39,11 @@ export async function GET(request: NextRequest) {
     : 10;
 
   try {
-    const posts = await getUserMedia(decryptToken(account.accessToken), limit);
+    const token = decryptToken(account.accessToken);
+    const posts =
+      account.platform === "FACEBOOK"
+        ? await getPagePosts(token, account.instagramId, limit)
+        : await getUserMedia(token, limit);
     return NextResponse.json({
       success: true,
       data: posts.map((post) => ({

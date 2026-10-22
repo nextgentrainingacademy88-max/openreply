@@ -12,6 +12,17 @@ function facebookGraphBase() {
   return `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
 }
 
+/**
+ * Where a connected account's messaging calls go. Instagram-login accounts use
+ * graph.instagram.com; Facebook Pages send Messenger messages through
+ * graph.facebook.com with a Page token. The request bodies are identical.
+ */
+export type AccountPlatform = "INSTAGRAM" | "FACEBOOK";
+
+function messagingBase(platform: AccountPlatform) {
+  return platform === "FACEBOOK" ? facebookGraphBase() : instagramGraphBase();
+}
+
 export class MetaApiError extends Error {
   constructor(
     public code: number,
@@ -152,10 +163,11 @@ export async function sendPrivateReply(
   accessToken: string,
   instagramAccountId: string,
   commentId: string,
-  message: string
+  message: string,
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    `${messagingBase(platform)}/${instagramAccountId}/messages`,
     {
       method: "POST",
       headers: {
@@ -184,10 +196,11 @@ export async function sendPrivateReplyWithButton(
   commentId: string,
   text: string,
   buttonTitle: string,
-  payload: string
+  payload: string,
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    `${messagingBase(platform)}/${instagramAccountId}/messages`,
     {
       method: "POST",
       headers: {
@@ -227,10 +240,11 @@ export async function sendDirectMessageWithButton(
   userId: string,
   text: string,
   buttonTitle: string,
-  payload: string
+  payload: string,
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    `${messagingBase(platform)}/${instagramAccountId}/messages`,
     {
       method: "POST",
       headers: {
@@ -312,10 +326,11 @@ export async function sendPrivateReplyWithLinkButton(
   instagramAccountId: string,
   commentId: string,
   text: string,
-  buttons: LinkButton[]
+  buttons: LinkButton[],
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    `${messagingBase(platform)}/${instagramAccountId}/messages`,
     {
       method: "POST",
       headers: {
@@ -349,10 +364,11 @@ export async function sendDirectMessage(
   accessToken: string,
   instagramAccountId: string,
   userId: string,
-  message: string
+  message: string,
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    `${messagingBase(platform)}/${instagramAccountId}/messages`,
     {
       method: "POST",
       headers: {
@@ -378,10 +394,11 @@ export async function sendDirectMessageWithLinkButton(
   instagramAccountId: string,
   userId: string,
   text: string,
-  buttons: LinkButton[]
+  buttons: LinkButton[],
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    `${messagingBase(platform)}/${instagramAccountId}/messages`,
     {
       method: "POST",
       headers: {
@@ -410,10 +427,15 @@ export async function sendDirectMessageWithLinkButton(
 export async function sendCommentReply(
   accessToken: string,
   commentId: string,
-  message: string
+  message: string,
+  platform: AccountPlatform = "INSTAGRAM"
 ): Promise<{ id: string }> {
+  // Instagram nests a reply under /replies; a Facebook comment reply is a
+  // comment on the comment.
   const response = await fetch(
-    `${instagramGraphBase()}/${commentId}/replies`,
+    platform === "FACEBOOK"
+      ? `${facebookGraphBase()}/${commentId}/comments`
+      : `${instagramGraphBase()}/${commentId}/replies`,
     {
       method: "POST",
       headers: {
@@ -452,6 +474,137 @@ export async function likeComment(
       body: JSON.stringify({ comment_id: commentId }),
     }
   );
+
+  return handleResponse(response);
+}
+
+/**
+ * Like a comment on a Facebook Page post (ads included) as the Page. Unlike
+ * the Instagram like, this takes the Page token the account already stores.
+ */
+export async function likeFacebookComment(
+  pageAccessToken: string,
+  commentId: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(`${facebookGraphBase()}/${commentId}/likes`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${pageAccessToken}` },
+  });
+
+  return handleResponse(response);
+}
+
+/**
+ * A Page's recent posts, newest first, in the same shape as Instagram media so
+ * the post picker and the agent API can list them unchanged. Ads that were
+ * never published to the Page feed do not appear here; campaigns cover those
+ * with "any post".
+ */
+export async function getPagePosts(
+  pageAccessToken: string,
+  pageId: string,
+  limit = 25
+): Promise<InstagramMedia[]> {
+  const url = new URL(`${facebookGraphBase()}/${pageId}/posts`);
+  url.searchParams.set(
+    "fields",
+    "id,message,created_time,permalink_url,full_picture,comments.summary(true).limit(0)"
+  );
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 100)));
+  url.searchParams.set("access_token", pageAccessToken);
+
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{
+    data: Array<{
+      id: string;
+      message?: string;
+      created_time: string;
+      permalink_url?: string;
+      full_picture?: string;
+      comments?: { summary?: { total_count?: number } };
+    }>;
+  }>(response);
+
+  return data.data.map((post) => ({
+    id: post.id,
+    caption: post.message,
+    media_type: post.full_picture ? "IMAGE" : "TEXT",
+    media_product_type: "FACEBOOK_POST",
+    media_url: post.full_picture,
+    thumbnail_url: post.full_picture,
+    timestamp: post.created_time,
+    permalink: post.permalink_url,
+    comments_count: post.comments?.summary?.total_count,
+  }));
+}
+
+export interface FacebookPage {
+  id: string;
+  name: string;
+  username?: string;
+  access_token?: string;
+}
+
+/**
+ * Pages a Facebook-login token can manage, each with its own Page token. For a
+ * system user token these are the Pages assigned to the system user, and the
+ * Page tokens never expire.
+ */
+export async function getManagedPages(accessToken: string): Promise<FacebookPage[]> {
+  const url = new URL(`${facebookGraphBase()}/me/accounts`);
+  url.searchParams.set("fields", "id,name,username,access_token");
+  url.searchParams.set("limit", "100");
+  url.searchParams.set("access_token", accessToken);
+
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{ data: FacebookPage[] }>(response);
+  return data.data ?? [];
+}
+
+/** Subscribe our app to a Page's comment and Messenger webhooks. */
+export async function subscribePageToWebhooks(
+  pageId: string,
+  pageAccessToken: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(`${facebookGraphBase()}/${pageId}/subscribed_apps`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${pageAccessToken}`,
+    },
+    body: JSON.stringify({
+      subscribed_fields: ["feed", "messages", "messaging_postbacks"],
+    }),
+  });
+
+  return handleResponse(response);
+}
+
+/**
+ * Point the app's Page webhooks at our callback. This is app-level config,
+ * normally set by hand in the Meta dashboard; doing it here saves that step.
+ * Needs an app token (`app_id|app_secret`).
+ */
+export async function subscribeAppToPageWebhooks(
+  appId: string,
+  appSecret: string,
+  callbackUrl: string,
+  verifyToken: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(`${facebookGraphBase()}/${appId}/subscriptions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${appId}|${appSecret}`,
+    },
+    body: JSON.stringify({
+      object: "page",
+      callback_url: callbackUrl,
+      fields: ["feed", "messages", "messaging_postbacks"],
+      verify_token: verifyToken,
+      include_values: true,
+    }),
+  });
 
   return handleResponse(response);
 }

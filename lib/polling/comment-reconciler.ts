@@ -63,7 +63,9 @@ function errMessage(error: unknown): string {
 /** One reconciliation pass across every active campaign. */
 export async function reconcileComments(): Promise<void> {
   const automations = await prisma.automation.findMany({
-    where: { isActive: true },
+    // Instagram only: this sweep reads Instagram media and comment endpoints.
+    // Facebook Page comments arrive by webhook alone.
+    where: { isActive: true, instagramAccount: { platform: "INSTAGRAM" } },
     select: {
       id: true,
       name: true,

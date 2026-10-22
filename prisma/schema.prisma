@@ -125,9 +125,18 @@ model WorkspaceInvitation {
   @@index([status])
 }
 
+/// Which Meta surface a connected account lives on. A FACEBOOK row is a
+/// Facebook Page: `instagramId` holds the Page ID, `accessToken` a Page token
+/// (no expiry), and DMs go out as Messenger private replies.
+enum AccountPlatform {
+  INSTAGRAM
+  FACEBOOK
+}
+
 model InstagramAccount {
   id                String   @id @default(cuid())
   workspaceId       String
+  platform          AccountPlatform @default(INSTAGRAM)
   instagramId       String   @unique
   username          String
   name              String?

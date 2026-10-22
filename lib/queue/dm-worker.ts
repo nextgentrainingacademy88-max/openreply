@@ -18,7 +18,9 @@ import {
   TokenExpiredError,
   getUserFollowStatus,
   likeComment,
+  likeFacebookComment,
   sendCommentReply,
+  type AccountPlatform,
   sendDirectMessage,
   sendDirectMessageWithButton,
   sendDirectMessageWithLinkButton,
@@ -121,8 +123,17 @@ type RevealAutomation = {
   dmMessage: string;
   linkButtonLabel: string | null;
   trackedLinks: WorkerTrackedLink[];
-  instagramAccount: { instagramId: string };
+  instagramAccount: { instagramId: string; platform: AccountPlatform };
 };
+
+// Facebook exposes no "does this person follow/like the Page" check, so a
+// follow gate can only run on Instagram. On a Page it is ignored.
+function followGateApplies(automation: {
+  requireFollow: boolean;
+  instagramAccount: { platform: AccountPlatform };
+}): boolean {
+  return automation.requireFollow && automation.instagramAccount.platform === "INSTAGRAM";
+}
 
 /**
  * Deliver a campaign's reveal message as a direct message. Shared by the
@@ -136,6 +147,8 @@ async function sendRevealDirectMessage(
   commenterName: string | null,
   context: string
 ): Promise<void> {
+  const { platform } = automation.instagramAccount;
+
   if (automation.trackedLinks.length === 0) {
     await sendDirectMessage(
       accessToken,
@@ -145,7 +158,8 @@ async function sendRevealDirectMessage(
         message: automation.dmMessage,
         commenterName,
         trackedLinks: automation.trackedLinks,
-      })
+      }),
+      platform
     );
     return;
   }
@@ -167,7 +181,8 @@ async function sendRevealDirectMessage(
       automation.instagramAccount.instagramId,
       userId,
       bodyText,
-      buttons
+      buttons,
+      platform
     );
   } catch (buttonError) {
     // A closed messaging window rejects the text retry too, so don't let it
@@ -188,7 +203,8 @@ async function sendRevealDirectMessage(
           commenterName,
           automation.trackedLinks,
           bodyText
-        )
+        ),
+        platform
       );
     } catch {
       throw buttonError;
@@ -198,11 +214,16 @@ async function sendRevealDirectMessage(
 
 async function likeMatchedComment(
   automationId: string,
-  instagramAccountId: string,
-  commentId: string
+  account: { instagramId: string; platform: AccountPlatform },
+  commentId: string,
+  accountAccessToken: string
 ): Promise<void> {
   const where = { automationId_commentId: { automationId, commentId } };
-  const engagementToken = getMetaEngagementToken();
+
+  // A Page likes with its own Page token. Instagram likes need the separate
+  // Facebook-login engagement token.
+  const engagementToken =
+    account.platform === "FACEBOOK" ? accountAccessToken : getMetaEngagementToken();
   if (!engagementToken) {
     await prisma.dmLog
       .update({
@@ -214,7 +235,11 @@ async function likeMatchedComment(
   }
 
   try {
-    await likeComment(engagementToken, instagramAccountId, commentId);
+    if (account.platform === "FACEBOOK") {
+      await likeFacebookComment(engagementToken, commentId);
+    } else {
+      await likeComment(engagementToken, account.instagramId, commentId);
+    }
     await prisma.dmLog.update({
       where,
       data: { commentLikedAt: new Date(), commentLikeError: null },
@@ -360,6 +385,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       continue;
     }
 
+    const { platform } = automation.instagramAccount;
+
     // Ensure a log row exists before the public reply leg (which updates it).
     // Only (re)set PENDING when the DM will actually be attempted, so a prior
     // SENT is never clobbered while we come back just to retry the public reply.
@@ -413,7 +440,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commenterName,
           trackedLinks: automation.trackedLinks,
         });
-        await sendCommentReply(accessToken, commentId, publicReply);
+        await sendCommentReply(accessToken, commentId, publicReply, platform);
         await prisma.dmLog.update({
           where: {
             automationId_commentId: { automationId: automation.id, commentId },
@@ -439,7 +466,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // Comment like leg — same contract as the public reply: independent of the
     // DM, idempotent via commentLikedAt, and a failure is recorded, not thrown.
     if (automation.likeComment && !existingLog?.commentLikedAt) {
-      await likeMatchedComment(automation.id, instagramAccountId, commentId);
+      await likeMatchedComment(
+        automation.id,
+        automation.instagramAccount,
+        commentId,
+        accessToken
+      );
     }
 
     // DM already sent on an earlier pass; the public reply retry above was all
@@ -583,8 +615,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // (opening DM → follow gate → link). Without an opening DM, we check follow
     // status at comment time: confirmed followers get the link now, everyone
     // else gets the "follow me first" prompt (re-verified on tap).
+    const followGate = followGateApplies(automation);
     let sendFollowPrompt = false;
-    if (automation.requireFollow && !useOpeningDm) {
+    if (followGate && !useOpeningDm) {
       const alreadyFollows = await getUserFollowStatus(accessToken, commenterId);
       sendFollowPrompt = alreadyFollows !== true;
       await recordFollowCheck({
@@ -608,9 +641,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commentId,
           openingText,
           automation.openingDmButtonLabel as string,
-          automation.requireFollow
-            ? `followcheck:${automation.id}`
-            : `reveal:${automation.id}`
+          followGate ? `followcheck:${automation.id}` : `reveal:${automation.id}`,
+          platform
         );
       } else if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
@@ -626,7 +658,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           promptText,
           automation.followPromptButtonLabel ||
             CAMPAIGN_DEFAULTS.followPromptButtonLabel,
-          `followcheck:${automation.id}`
+          `followcheck:${automation.id}`,
+          platform
         );
       } else if (automation.trackedLinks.length > 0) {
         // Try button template first; if Meta rejects it, fall back to inline links.
@@ -646,7 +679,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             automation.instagramAccount.instagramId,
             commentId,
             bodyText,
-            buttons
+            buttons,
+            platform
           );
         } catch (buttonError) {
           // Only a template rejection is worth retrying as text. Anything else
@@ -669,7 +703,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
               accessToken,
               automation.instagramAccount.instagramId,
               commentId,
-              fallbackMessage
+              fallbackMessage,
+              platform
             );
           } catch {
             // The first attempt consumed the comment's single private reply, so
@@ -688,7 +723,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           accessToken,
           automation.instagramAccount.instagramId,
           commentId,
-          dmMessage
+          dmMessage,
+          platform
         );
       }
 
@@ -799,7 +835,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   // be bypassable by just reading the DM and waiting. Following, or
   // unverifiable (null), falls through and delivers the link — fail-open so a
   // real follower is never trapped.
-  if ((isFollowCheck || fallback) && automation.requireFollow) {
+  if ((isFollowCheck || fallback) && followGateApplies(automation)) {
     const follows = await getUserFollowStatus(accessToken, userId);
     await recordFollowCheck({
       workspaceId: automation.workspaceId,
@@ -823,7 +859,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           promptText,
           automation.followPromptButtonLabel ||
             CAMPAIGN_DEFAULTS.followPromptButtonLabel,
-          `followcheck:${automation.id}`
+          `followcheck:${automation.id}`,
+          automation.instagramAccount.platform
         );
       } catch (error) {
         console.log(
@@ -980,7 +1017,8 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
       renderMessageWithoutLink({
         message: automation.followUpMessage,
         commenterName: commenterName ?? null,
-      })
+      }),
+      automation.instagramAccount.platform
     );
   } catch (error) {
     console.log(
@@ -1120,7 +1158,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // the user has already claimed to follow; here it would hand the link to
     // anyone whose status the API happens not to resolve.
     let sendFollowPrompt = false;
-    if (automation.requireFollow) {
+    if (followGateApplies(automation)) {
       const follows = await getUserFollowStatus(accessToken, senderId);
       sendFollowPrompt = follows !== true;
       await recordFollowCheck({
@@ -1168,7 +1206,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           promptText,
           automation.followPromptButtonLabel ||
             CAMPAIGN_DEFAULTS.followPromptButtonLabel,
-          `followcheck:${automation.id}`
+          `followcheck:${automation.id}`,
+          automation.instagramAccount.platform
         );
       } else {
         await sendRevealDirectMessage(

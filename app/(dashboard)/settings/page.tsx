@@ -12,7 +12,8 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import type { AccountOption } from "@/components/account-select";
+import { accountLabel, type AccountOption } from "@/components/account-select";
+import { FacebookPagesCard } from "@/components/facebook-pages-card";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 import { PasswordCard } from "@/components/settings-password-card";
 import {
@@ -100,7 +101,7 @@ export default function SettingsPage() {
   }
 
   async function disconnectInstagram(instagramAccountId: string) {
-    if (!confirm("Disconnect Instagram? Campaigns for this account will stop sending DMs.")) {
+    if (!confirm("Disconnect this account? Its campaigns will stop sending DMs.")) {
       return;
     }
 
@@ -174,7 +175,7 @@ export default function SettingsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Instagram accounts</CardTitle>
+            <CardTitle>Connected accounts</CardTitle>
             <Badge tone={accounts.length > 0 ? "success" : "warning"}>
               {accounts.length > 0 ? "Connected" : "Not connected"}
             </Badge>
@@ -199,15 +200,18 @@ export default function SettingsPage() {
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-foreground">
-                        @{account.username}
+                        {accountLabel(account)}
                       </p>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
                         <span className="inline-flex items-center gap-1">
                           <Clock className="h-3 w-3" aria-hidden="true" />
-                          Token expires{" "}
-                          {account.tokenExpiresAt
-                            ? new Date(account.tokenExpiresAt).toLocaleDateString()
-                            : "not available"}
+                          {account.platform === "FACEBOOK"
+                            ? "Page token, no expiry"
+                            : `Token expires ${
+                                account.tokenExpiresAt
+                                  ? new Date(account.tokenExpiresAt).toLocaleDateString()
+                                  : "not available"
+                              }`}
                         </span>
                         <Badge tone={account.webhookSubscribed ? "success" : "warning"}>
                           {account.webhookSubscribed ? "Webhook ready" : "Webhook pending"}
@@ -249,6 +253,8 @@ export default function SettingsPage() {
             </a>
           </div>
         </Card>
+
+        <FacebookPagesCard />
 
         <Card>
           <CardHeader>

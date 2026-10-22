@@ -322,7 +322,8 @@ export async function createCampaign(
         })
       : prisma.instagramAccount.findFirst({
           where: { workspaceId },
-          orderBy: { connectedAt: "desc" },
+          // Instagram first: a Facebook Page is only used when asked for by id.
+          orderBy: [{ platform: "asc" }, { connectedAt: "desc" }],
         }),
   ]);
 
@@ -333,6 +334,16 @@ export async function createCampaign(
   if (!instagramAccount) {
     return fail(400, "Connect Instagram before creating campaigns");
   }
+
+  // Facebook Pages publish no "new reel" signal and expose no follow check.
+  const isFacebookPage = instagramAccount.platform === "FACEBOOK";
+  if (isFacebookPage && parsed.data.pendingNextReel) {
+    return fail(
+      400,
+      "Next-post campaigns are Instagram only. For a Facebook Page, pick a post or any post."
+    );
+  }
+  const requireFollow = parsed.data.requireFollow && !isFacebookPage;
 
   const { trackedDestinationUrl, secondaryDestinationUrl, secondaryButtonLabel } =
     parsed.data;
@@ -397,11 +408,11 @@ export async function createCampaign(
         ? parsed.data.openingDmButtonLabel || null
         : null,
       linkButtonLabel: parsed.data.linkButtonLabel || null,
-      requireFollow: parsed.data.requireFollow,
-      followPromptMessage: parsed.data.requireFollow
+      requireFollow,
+      followPromptMessage: requireFollow
         ? parsed.data.followPromptMessage || null
         : null,
-      followPromptButtonLabel: parsed.data.requireFollow
+      followPromptButtonLabel: requireFollow
         ? parsed.data.followPromptButtonLabel || null
         : null,
       followUpEnabled: parsed.data.followUpEnabled,
@@ -446,10 +457,22 @@ export async function updateCampaign(
 
   const existing = await prisma.automation.findFirst({
     where: { id: automationId, workspaceId },
+    include: { instagramAccount: { select: { platform: true } } },
   });
 
   if (!existing) {
     return fail(404, "Campaign not found");
+  }
+
+  if (existing.instagramAccount.platform === "FACEBOOK") {
+    if (parsed.data.pendingNextReel === true) {
+      return fail(
+        400,
+        "Next-post campaigns are Instagram only. For a Facebook Page, pick a post or any post."
+      );
+    }
+    // No follow check exists for Pages; keep the stored flag honest.
+    if (parsed.data.requireFollow === true) parsed.data.requireFollow = false;
   }
 
   const {

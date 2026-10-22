@@ -441,8 +441,12 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   }, [mode]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const username =
-    accounts.find((a) => a.id === selectedAccountId)?.username ?? "yourbrand";
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+  const username = selectedAccount?.username ?? "yourbrand";
+  // A Facebook Page has no follow check and no "next reel" signal, so those
+  // options are hidden for it (the server ignores or rejects them too).
+  const isFacebookPage = selectedAccount?.platform === "FACEBOOK";
+  const followGateOn = requireFollow && !isFacebookPage;
 
   function handlePostSelect(
     id: string,
@@ -463,7 +467,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   async function handleSubmit(activeValue: boolean) {
     setError(null);
 
-    if (!selectedAccountId) return setError("Connect an Instagram account first.");
+    if (!selectedAccountId) return setError("Connect an account first.");
     if (triggerScope === "specific" && !postId)
       return setError("Pick a post or reel to trigger the campaign.");
     if (matchMode === "specific" && keywords.length === 0)
@@ -480,7 +484,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       postId: triggerScope === "specific" ? postId : null,
       postUrl: triggerScope === "specific" ? postUrl : null,
       matchAnyPost: triggerScope === "any",
-      pendingNextReel: triggerScope === "next",
+      pendingNextReel: triggerScope === "next" && !isFacebookPage,
       matchAnyWord: matchMode === "any",
       keywords: matchMode === "any" ? [] : keywords,
       dmTriggerEnabled,
@@ -498,11 +502,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       secondaryDestinationUrl: secondaryDestinationUrl.trim() || "",
       secondaryButtonLabel:
         secondaryButtonLabel.trim() || CAMPAIGN_DEFAULTS.secondaryButtonLabel,
-      requireFollow,
-      followPromptMessage: requireFollow
+      requireFollow: followGateOn,
+      followPromptMessage: followGateOn
         ? followPromptMessage.trim() || CAMPAIGN_DEFAULTS.followPromptMessage
         : "",
-      followPromptButtonLabel: requireFollow
+      followPromptButtonLabel: followGateOn
         ? followPromptButtonLabel.trim() || CAMPAIGN_DEFAULTS.followPromptButtonLabel
         : "",
       followUpEnabled,
@@ -728,9 +732,13 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   setPostId(null);
                   setPostUrl(null);
                   setPostThumb(null);
+                  const next = accounts.find((a) => a.id === id);
+                  if (next?.platform === "FACEBOOK" && triggerScope === "next") {
+                    setTriggerScope("any");
+                  }
                 }}
                 includeAll={false}
-                label="Instagram account"
+                label="Account"
               />
             </div>
           )}
@@ -755,7 +763,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   checked={triggerScope === "specific"}
                   onSelect={() => setTriggerScope("specific")}
                 >
-                  a specific post or reel
+                  {isFacebookPage ? "a specific post" : "a specific post or reel"}
                 </Radio>
                 {triggerScope === "specific" && (
                   <div className="rounded-xl border border-border p-2">
@@ -771,14 +779,22 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   checked={triggerScope === "any"}
                   onSelect={() => setTriggerScope("any")}
                 >
-                  any post or reel
+                  {isFacebookPage ? "any post, ads included" : "any post or reel"}
                 </Radio>
-                <Radio
-                  checked={triggerScope === "next"}
-                  onSelect={() => setTriggerScope("next")}
-                >
-                  next post or reel
-                </Radio>
+                {isFacebookPage ? (
+                  <p className="text-xs text-muted">
+                    Running Facebook ads? Use &quot;any post&quot;: ad posts
+                    don&apos;t show in the Page&apos;s post list, but their
+                    comments still trigger the campaign.
+                  </p>
+                ) : (
+                  <Radio
+                    checked={triggerScope === "next"}
+                    onSelect={() => setTriggerScope("next")}
+                  >
+                    next post or reel
+                  </Radio>
+                )}
               </div>
 
               <div className="space-y-2 border-t border-border pt-3">
@@ -838,8 +854,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               </div>
               {likeComment && (
                 <p className="text-xs text-muted">
-                  The account likes each matching comment. Needs the engagement
-                  token on the server; comments from private accounts can&apos;t be liked.
+                  {isFacebookPage
+                    ? "The Page likes each matching comment."
+                    : "The account likes each matching comment. Needs the engagement token on the server; comments from private accounts can't be liked."}
                 </p>
               )}
             </FlowStep>
@@ -950,17 +967,23 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               number={4}
               icon={UserPlus}
               title="Follow gate"
-              helper="Require a follow before the link is sent."
-              active={requireFollow}
+              helper={
+                isFacebookPage
+                  ? "Instagram only. Facebook has no way to check a Page follow, so the link goes straight out."
+                  : "Require a follow before the link is sent."
+              }
+              active={followGateOn}
               toggle={
-                <Toggle
-                  checked={requireFollow}
-                  onChange={setRequireFollow}
-                  aria-label="Require follow before sending the link"
-                />
+                isFacebookPage ? undefined : (
+                  <Toggle
+                    checked={requireFollow}
+                    onChange={setRequireFollow}
+                    aria-label="Require follow before sending the link"
+                  />
+                )
               }
             >
-              {requireFollow && (
+              {followGateOn && (
                 <div className="space-y-2">
                   <Textarea
                     value={followPromptMessage}
@@ -1149,7 +1172,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               secondLinkOpen && Boolean(secondaryDestinationUrl.trim())
             }
             secondLinkButtonLabel={secondaryButtonLabel || CAMPAIGN_DEFAULTS.secondaryButtonLabel}
-            requireFollow={requireFollow}
+            requireFollow={followGateOn}
             followPromptMessage={followPromptMessage}
             followPromptButtonLabel={followPromptButtonLabel || CAMPAIGN_DEFAULTS.followPromptButtonLabel}
             followUpEnabled={followUpEnabled}

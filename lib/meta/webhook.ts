@@ -53,11 +53,18 @@ interface WebhookEntry {
       from?: {
         id?: string;
         username?: string;
+        // Facebook Page feed events carry a display name, not a username.
+        name?: string;
       };
       media?: {
         id?: string;
       };
       media_id?: string;
+      // Facebook Page `feed` fields.
+      item?: string;
+      verb?: string;
+      post_id?: string;
+      message?: string;
     };
   }>;
   messaging?: Array<{
@@ -101,8 +108,56 @@ interface WebhookPayload {
   entry: WebhookEntry[];
 }
 
+// Instagram accounts deliver as "instagram"; Facebook Pages (comments and
+// Messenger) deliver as "page". Both shapes key the account by entry.id.
+function isSupportedObject(object: string): boolean {
+  return object === "instagram" || object === "page";
+}
+
+/**
+ * New comments on a Facebook Page's posts, ads included (Meta sends `feed`
+ * events for comments on ad posts even though it sends none for the ad post
+ * itself). Edits, deletions, reactions and new posts are ignored.
+ */
+function parsePageFeedComments(payload: WebhookPayload): WebhookCommentEvent[] {
+  const events: WebhookCommentEvent[] = [];
+
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "feed") continue;
+
+      const value = change.value;
+      if (value?.item !== "comment" || value.verb !== "add") continue;
+
+      const commentId = value.comment_id;
+      const postId = value.post_id;
+      const commenterId = value.from?.id;
+      if (!entry.id || !commentId || !postId || !commenterId) continue;
+
+      // The Page's own comments include our public replies; replying to those
+      // would loop.
+      if (commenterId === entry.id) continue;
+
+      events.push({
+        instagramAccountId: entry.id,
+        commentId,
+        commentText: value.message ?? "",
+        commenterId,
+        commenterName: value.from?.name,
+        mediaId: postId,
+      });
+    }
+  }
+
+  return events;
+}
+
 export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent[] {
   const events: WebhookCommentEvent[] = [];
+
+  if (payload.object === "page") {
+    return parsePageFeedComments(payload);
+  }
 
   if (payload.object !== "instagram") {
     return events;
@@ -151,7 +206,7 @@ export function parsePostbackEvents(
 ): WebhookPostbackEvent[] {
   const events: WebhookPostbackEvent[] = [];
 
-  if (payload.object !== "instagram") return events;
+  if (!isSupportedObject(payload.object)) return events;
 
   for (const entry of payload.entry ?? []) {
     for (const messaging of entry.messaging ?? []) {
@@ -190,7 +245,7 @@ export function parseMessageEvents(
 ): WebhookMessageEvent[] {
   const events: WebhookMessageEvent[] = [];
 
-  if (payload.object !== "instagram") return events;
+  if (!isSupportedObject(payload.object)) return events;
 
   for (const entry of payload.entry ?? []) {
     for (const messaging of entry.messaging ?? []) {
@@ -229,7 +284,7 @@ export function parseMessageEvents(
 export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
   const events: WebhookReadEvent[] = [];
 
-  if (payload.object !== "instagram") return events;
+  if (!isSupportedObject(payload.object)) return events;
 
   for (const entry of payload.entry ?? []) {
     for (const messaging of entry.messaging ?? []) {

@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
   }
 
   const accounts = await prisma.instagramAccount.findMany({
-    where: { accessToken: { not: "" } },
+    // Follower counts come from the Instagram API; Facebook Pages have none here.
+    where: { accessToken: { not: "" }, platform: "INSTAGRAM" },
     select: {
       id: true,
       workspaceId: true,

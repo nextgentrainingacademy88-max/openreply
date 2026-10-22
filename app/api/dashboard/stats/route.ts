@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
     }),
     prisma.instagramAccount.findFirst({
       where: { workspaceId },
-      orderBy: { connectedAt: "desc" },
+      // Instagram accounts first, so pickers default to one; Pages follow.
+      orderBy: [{ platform: "asc" }, { connectedAt: "desc" }],
       select: {
         id: true,
         username: true,
@@ -71,12 +72,14 @@ export async function GET(request: NextRequest) {
     }),
     prisma.instagramAccount.findMany({
       where: { workspaceId },
-      orderBy: { connectedAt: "desc" },
+      // Instagram accounts first, so pickers default to one; Pages follow.
+      orderBy: [{ platform: "asc" }, { connectedAt: "desc" }],
       select: {
         id: true,
         username: true,
         instagramId: true,
         name: true,
+        platform: true,
         tokenExpiresAt: true,
         webhookSubscribed: true,
       },

@@ -17,6 +17,8 @@ const {
   mockReleaseWorkspaceDMReservation,
   mockRecordFollowCheck,
   mockLikeComment,
+  mockLikeFacebookComment,
+  mockSendCommentReply,
   mockBindPendingNextReels,
 } = vi.hoisted(() => ({
   mockPrisma: {
@@ -53,6 +55,8 @@ const {
   mockReleaseWorkspaceDMReservation: vi.fn(),
   mockRecordFollowCheck: vi.fn(),
   mockLikeComment: vi.fn(),
+  mockLikeFacebookComment: vi.fn(),
+  mockSendCommentReply: vi.fn(),
   mockBindPendingNextReels: vi.fn(),
 }));
 
@@ -68,8 +72,9 @@ vi.mock("@/lib/meta/client", () => ({
   sendDirectMessageWithButton: mockSendDirectMessageWithButton,
   sendDirectMessage: mockSendDirectMessage,
   sendDirectMessageWithLinkButton: mockSendDirectMessageWithLinkButton,
-  sendCommentReply: vi.fn(),
+  sendCommentReply: mockSendCommentReply,
   likeComment: mockLikeComment,
+  likeFacebookComment: mockLikeFacebookComment,
   MetaApiError: class MetaApiError extends Error {
     code: number;
     constructor(
@@ -170,6 +175,7 @@ const mockAutomation = {
     id: "ig_account_row_1",
     instagramId: "ig_456",
     accessToken: "encrypted_token_abc",
+    platform: "INSTAGRAM",
   },
   workspace: {
     id: "workspace_123",
@@ -290,8 +296,106 @@ beforeEach(() => {
   });
   mockGetUserFollowStatus.mockResolvedValue(true);
   mockLikeComment.mockResolvedValue({ success: true });
+  mockLikeFacebookComment.mockResolvedValue({ success: true });
+  mockSendCommentReply.mockResolvedValue({ id: "reply_001" });
   mockBindPendingNextReels.mockResolvedValue(0);
   delete process.env.META_ENGAGEMENT_ACCESS_TOKEN;
+});
+
+describe("DM Worker — Facebook Page", () => {
+  const pageAutomation = {
+    ...mockAutomation,
+    instagramAccount: {
+      ...mockAutomation.instagramAccount,
+      instagramId: "page_123",
+      platform: "FACEBOOK",
+    },
+  };
+  const pageJob = {
+    ...mockJobData,
+    instagramAccountId: "page_123",
+    mediaId: "page_123_post_1",
+  };
+
+  it("should send the private reply through Messenger with a WhatsApp button", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      {
+        ...pageAutomation,
+        dmMessage: "Hi {username}! Tap below to chat with us on WhatsApp {link}",
+        linkButtonLabel: "Chat on WhatsApp",
+        trackedLinks: [
+          {
+            slug: "wa1",
+            label: "Primary campaign link",
+            destinationUrl: "https://wa.me/601119391308",
+          },
+        ],
+      },
+    ]);
+    const processor = getProcessor();
+
+    await processor(createMockJob(pageJob));
+
+    expect(mockSendPrivateReplyWithLinkButton).toHaveBeenCalledWith(
+      "decrypted_token",
+      "page_123",
+      "comment_555",
+      "Hi commenter_user! Tap below to chat with us on WhatsApp",
+      [{ title: "Chat on WhatsApp", url: "http://localhost:3000/r/wa1" }],
+      "FACEBOOK"
+    );
+  });
+
+  it("should ignore the follow gate on a Page and send the link straight away", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...pageAutomation, requireFollow: true },
+    ]);
+    const processor = getProcessor();
+
+    await processor(createMockJob(pageJob));
+
+    expect(mockGetUserFollowStatus).not.toHaveBeenCalled();
+    expect(mockSendPrivateReplyWithButton).not.toHaveBeenCalled();
+    expect(mockSendPrivateReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "page_123",
+      "comment_555",
+      "Hey commenter_user! Here is the link: https://example.com",
+      "FACEBOOK"
+    );
+  });
+
+  it("should reply publicly and like the comment with the Page token alone", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      {
+        ...pageAutomation,
+        likeComment: true,
+        publicReplyEnabled: true,
+        publicReplyMessages: ["Sent! Check Messenger 📩"],
+      },
+    ]);
+    const processor = getProcessor();
+
+    await processor(createMockJob(pageJob));
+
+    expect(mockSendCommentReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "comment_555",
+      "Sent! Check Messenger 📩",
+      "FACEBOOK"
+    );
+    expect(mockLikeFacebookComment).toHaveBeenCalledWith(
+      "decrypted_token",
+      "comment_555"
+    );
+    expect(mockLikeComment).not.toHaveBeenCalled();
+    expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
+      where: {
+        automationId_commentId: { automationId: "auto_789", commentId: "comment_555" },
+      },
+      data: { commentLikedAt: expect.any(Date), commentLikeError: null },
+    });
+  });
 });
 
 describe("DM Worker — comment like", () => {
@@ -428,7 +532,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "comment_555",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
     expect(mockReleaseWorkspaceDMReservation).not.toHaveBeenCalled();
     expect(mockPrisma.dmLog.update).toHaveBeenCalledWith({
@@ -621,7 +726,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "comment_555",
-      "Hey there! Here is the link: https://example.com"
+      "Hey there! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
   });
 
@@ -659,7 +765,8 @@ describe("DM Worker — Full Pipeline", () => {
       [
         { title: "Get offer", url: "http://localhost:3000/r/abc123" },
         { title: "Book a call", url: "http://localhost:3000/r/def456" },
-      ]
+      ],
+      "INSTAGRAM"
     );
   });
 
@@ -692,7 +799,8 @@ describe("DM Worker — Full Pipeline", () => {
       "comment_555",
       "Follow me first commenter_user, then tap 👇",
       "I'm following ✅",
-      "followcheck:auto_789"
+      "followcheck:auto_789",
+      "INSTAGRAM"
     );
     expect(mockSendPrivateReplyWithLinkButton).not.toHaveBeenCalled();
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
@@ -735,7 +843,8 @@ describe("DM Worker — Full Pipeline", () => {
       "ig_456",
       "comment_555",
       "Hey commenter_user! Here is the offer:",
-      [{ title: "Get offer", url: "http://localhost:3000/r/abc123" }]
+      [{ title: "Get offer", url: "http://localhost:3000/r/abc123" }],
+      "INSTAGRAM"
     );
   });
 
@@ -768,7 +877,8 @@ describe("DM Worker — Full Pipeline", () => {
       "comment_555",
       "Hey commenter_user, welcome!",
       "Get the link",
-      "followcheck:auto_789"
+      "followcheck:auto_789",
+      "INSTAGRAM"
     );
     // Follow status is verified on the tap, not at comment time.
     expect(mockGetUserFollowStatus).not.toHaveBeenCalled();
@@ -804,7 +914,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
   });
 
@@ -881,7 +992,8 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
     // The follow is recorded, closing any open attribution for this campaign.
     expect(mockRecordFollowCheck).toHaveBeenCalledWith({
@@ -1071,7 +1183,8 @@ describe("DM Worker — DM keyword trigger", () => {
       "decrypted_token",
       "ig_456",
       "commenter_999",
-      "Hey commenter_user! Here is the link: https://example.com"
+      "Hey commenter_user! Here is the link: https://example.com",
+      "INSTAGRAM"
     );
     // Never a private reply — there is no comment to reply to.
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
@@ -1159,7 +1272,8 @@ describe("DM Worker — DM keyword trigger", () => {
         "commenter_user"
       ),
       CAMPAIGN_DEFAULTS.followPromptButtonLabel,
-      "followcheck:auto_789"
+      "followcheck:auto_789",
+      "INSTAGRAM"
     );
     expect(mockSendDirectMessage).not.toHaveBeenCalled();
   });

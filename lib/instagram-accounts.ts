@@ -35,9 +35,11 @@ export async function getWorkspaceInstagramAccount(
     });
   }
 
+  // With no explicit choice, prefer an Instagram account: the dashboard views
+  // that rely on this default (overview, profile, inbox) are Instagram-only.
   return prisma.instagramAccount.findFirst({
     where: { workspaceId },
-    orderBy: { connectedAt: "desc" },
+    orderBy: [{ platform: "asc" }, { connectedAt: "desc" }],
   });
 }
 

@@ -7,6 +7,14 @@ export interface AccountOption {
   username: string;
   instagramId: string;
   name?: string | null;
+  platform?: "INSTAGRAM" | "FACEBOOK";
+}
+
+/** How an account reads in a picker: @handle for Instagram, name for a Page. */
+export function accountLabel(account: AccountOption): string {
+  return account.platform === "FACEBOOK"
+    ? `${account.name ?? account.username} (Facebook Page)`
+    : `@${account.username}`;
 }
 
 interface AccountSelectProps {
@@ -37,7 +45,7 @@ export default function AccountSelect({
         {includeAll && <option value="all">All accounts</option>}
         {accounts.map((account) => (
           <option key={account.id} value={account.id}>
-            @{account.username}
+            {accountLabel(account)}
           </option>
         ))}
       </Select>

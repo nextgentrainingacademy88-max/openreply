@@ -385,10 +385,10 @@ describe("parseMessageEvents", () => {
     expect(parseMessageEvents(payload)).toHaveLength(0);
   });
 
-  it("should ignore non-instagram payloads", () => {
+  it("should ignore payloads from other Meta products", () => {
     expect(
       parseMessageEvents({
-        object: "page",
+        object: "whatsapp_business_account",
         entry: [
           {
             id: "ig_456",
@@ -453,5 +453,86 @@ describe("parseReadEvents", () => {
     };
 
     expect(parseReadEvents(payload)).toHaveLength(0);
+  });
+});
+
+describe("Facebook Page webhooks", () => {
+  const feedChange = (value: Record<string, unknown>) => ({
+    object: "page",
+    entry: [{ id: "page_123", time: 1, changes: [{ field: "feed", value }] }],
+  });
+
+  it("should turn a new comment on a Page post or ad into a comment event", () => {
+    const events = parseCommentEvents(
+      feedChange({
+        item: "comment",
+        verb: "add",
+        comment_id: "post_1_comment_9",
+        post_id: "page_123_post_1",
+        message: "WHATSAPP please",
+        from: { id: "fb_user_7", name: "Siti Aminah" },
+      })
+    );
+
+    expect(events).toEqual([
+      {
+        instagramAccountId: "page_123",
+        commentId: "post_1_comment_9",
+        commentText: "WHATSAPP please",
+        commenterId: "fb_user_7",
+        commenterName: "Siti Aminah",
+        mediaId: "page_123_post_1",
+      },
+    ]);
+  });
+
+  it("should skip the Page's own comments so public replies never loop", () => {
+    expect(
+      parseCommentEvents(
+        feedChange({
+          item: "comment",
+          verb: "add",
+          comment_id: "c1",
+          post_id: "page_123_post_1",
+          message: "Sent! Check Messenger",
+          from: { id: "page_123", name: "NextGen" },
+        })
+      )
+    ).toHaveLength(0);
+  });
+
+  it("should ignore edits, deletions, reactions and new posts", () => {
+    for (const value of [
+      { item: "comment", verb: "edited", comment_id: "c1", post_id: "p1", from: { id: "u1" } },
+      { item: "comment", verb: "remove", comment_id: "c1", post_id: "p1", from: { id: "u1" } },
+      { item: "reaction", verb: "add", post_id: "p1", from: { id: "u1" } },
+      { item: "status", verb: "add", post_id: "p1", from: { id: "page_123" } },
+    ]) {
+      expect(parseCommentEvents(feedChange(value))).toHaveLength(0);
+    }
+  });
+
+  it("should read Messenger DMs to the Page like Instagram DMs", () => {
+    expect(
+      parseMessageEvents({
+        object: "page",
+        entry: [
+          {
+            id: "page_123",
+            time: 1,
+            messaging: [
+              { sender: { id: "psid_5" }, message: { mid: "m_1", text: "whatsapp" } },
+            ],
+          },
+        ],
+      })
+    ).toEqual([
+      {
+        instagramAccountId: "page_123",
+        messageId: "m_1",
+        messageText: "whatsapp",
+        senderId: "psid_5",
+      },
+    ]);
   });
 });
