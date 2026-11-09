@@ -1060,6 +1060,78 @@ describe("DM Worker — Full Pipeline", () => {
 });
 
 describe("DM Worker — one private reply per comment", () => {
+  it("should let a campaign bound to this post answer alone over an any-post catch-all", async () => {
+    const catchAll = {
+      ...mockAutomation,
+      id: "auto_catch_all",
+      postId: null,
+      matchAnyPost: true,
+      matchAnyWord: true,
+      keywords: [],
+      dmMessage: "Catch-all DM",
+      publicReplyEnabled: true,
+      publicReplyMessages: ["catch-all public reply"],
+    };
+    const postSpecific = {
+      ...mockAutomation,
+      id: "auto_post",
+      matchAnyWord: true,
+      keywords: [],
+      dmMessage: "Post DM",
+      publicReplyEnabled: true,
+      publicReplyMessages: ["post public reply"],
+    };
+    // The catch-all is older, so it is listed first.
+    mockPrisma.automation.findMany.mockResolvedValue([catchAll, postSpecific]);
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
+    expect(mockSendPrivateReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "comment_555",
+      "Post DM",
+      "INSTAGRAM"
+    );
+    for (const call of mockSendCommentReply.mock.calls) {
+      expect(call).not.toContain("catch-all public reply");
+    }
+    expect(mockPrisma.dmLog.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ automationId: "auto_catch_all" }),
+      })
+    );
+  });
+
+  it("should still run the catch-all when the post campaign's keywords miss", async () => {
+    const catchAll = {
+      ...mockAutomation,
+      id: "auto_catch_all",
+      postId: null,
+      matchAnyPost: true,
+      matchAnyWord: true,
+      keywords: [],
+      dmMessage: "Catch-all DM",
+    };
+    const postSpecific = { ...mockAutomation, id: "auto_post", dmMessage: "Post DM" };
+    mockPrisma.automation.findMany.mockResolvedValue([catchAll, postSpecific]);
+    mockMatchKeywords.mockReturnValue({ matched: false, matchedKeyword: null });
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
+    expect(mockSendPrivateReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "comment_555",
+      "Catch-all DM",
+      "INSTAGRAM"
+    );
+  });
+
   it("should skip a campaign when another already used the comment's private reply", async () => {
     mockPrisma.dmLog.findFirst.mockImplementation(
       async (args: { where?: { status?: string } } = {}) =>

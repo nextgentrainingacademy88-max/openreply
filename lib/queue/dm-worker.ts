@@ -291,19 +291,31 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
 
-  for (const automation of automations) {
-    // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
-    const matchResult = automation.matchAnyWord
-      ? { matched: true, matchedKeyword: null }
-      : matchKeywords(
-          commentText,
-          automation.keywords,
-          automation.wholeWordMatch
-        );
+  // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
+  const matchedCampaigns = automations
+    .map((automation) => ({
+      automation,
+      matchResult: automation.matchAnyWord
+        ? { matched: true, matchedKeyword: null }
+        : matchKeywords(
+            commentText,
+            automation.keywords,
+            automation.wholeWordMatch
+          ),
+    }))
+    .filter(({ matchResult }) => matchResult.matched);
 
-    if (!matchResult.matched) {
-      continue;
-    }
+  // A campaign bound to this exact post is more specific than an any-post
+  // catch-all, so when one matches it answers alone: the catch-all neither
+  // takes the one private reply Meta allows nor adds a second public reply.
+  const postSpecificMatched = matchedCampaigns.some(
+    ({ automation }) => !automation.matchAnyPost && automation.postId === mediaId
+  );
+  const campaignsToRun = postSpecificMatched
+    ? matchedCampaigns.filter(({ automation }) => !automation.matchAnyPost)
+    : matchedCampaigns;
+
+  for (const { automation, matchResult } of campaignsToRun) {
 
     const existingLog = await prisma.dmLog.findUnique({
       where: {
